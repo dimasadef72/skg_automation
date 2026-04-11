@@ -62,6 +62,9 @@ venv.bak/
 
 # Folder Output / Hasil generated data excel
 Output/
+Output100/
+Output200/
+Hasil*.xlsx
 
 # Data source jika anda tidak ingin me-version control data input (hapus komentar jika data ingin di-ignore)
 # data/
