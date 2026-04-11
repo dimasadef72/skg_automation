@@ -10,6 +10,12 @@ from openpyxl.utils import get_column_letter
 # === Impor dari Modul Terpisah ===
 from kalman_module import process_kalman
 from kuantisasi_module import process_kuantisasi
+try:
+    from bch_module import process_bch
+    from hash_module import process_hash
+    from nist_module import process_nist
+except ImportError:
+    pass  # Akan dibuat nanti
 
 # =====================================================================
 # GLOBAL PARAMETERS
@@ -31,6 +37,7 @@ PARAM_VARIATIONS = [
 
 # Skenario iterasi 1 - 4
 SCENARIOS = [1, 2, 3, 4]
+CHUNK_SIZE = 200
 
 # =====================================================================
 # UTILITY FUNCTIONS
@@ -204,6 +211,231 @@ def build_kuantisasi_excel(output_path, records):
         ws.column_dimensions[get_column_letter(col)].width = 20
         
     wb.save(output_path)
+
+def build_bch_excel(output_path, records):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rekap BCH"
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Pengujian Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter BCH").font = header_font
+        for idx, val in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="KDR Setelah koreksi BCH (%)")
+        ws.cell(row=start_row + 1, column=2, value=r['kdr_after_ab'])
+        ws.cell(row=start_row + 1, column=3, value=r['kdr_after_eve'])
+
+        ws.cell(row=start_row + 2, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 2, column=2, value=r['time_bch_ab'])
+        ws.cell(row=start_row + 2, column=3, value=r['time_bch_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 2, min_col=1, max_col=3):
+            for cell in row:
+                cell.alignment = center_align
+
+        current_row = start_row + 5
+
+    for col in range(1, 4):
+        ws.column_dimensions[get_column_letter(col)].width = 25
+    wb.save(output_path)
+
+def build_hash_excel(output_path, records):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rekap Hash"
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter Hash").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="Jumlah Kunci Cocok (Match)")
+        ws.cell(row=start_row + 1, column=2, value=r['aes_count_ab'])
+        ws.merge_cells(start_row=start_row + 1, start_column=2, end_row=start_row + 1, end_column=3)
+        ws.cell(row=start_row + 1, column=4, value=r['aes_count_eve'])
+        ws.merge_cells(start_row=start_row + 1, start_column=4, end_row=start_row + 1, end_column=5)
+
+        ws.cell(row=start_row + 2, column=1, value="Kunci Pertama (Hex)")
+        ws.cell(row=start_row + 2, column=2, value=r['final_key_alice'])
+        ws.cell(row=start_row + 2, column=3, value=r['final_key_bob'])
+        ws.cell(row=start_row + 2, column=4, value=r['final_key_ea'])
+        ws.cell(row=start_row + 2, column=5, value=r['final_key_eb'])
+
+        ws.cell(row=start_row + 3, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 3, column=2, value=r['time_hash_ab'])
+        ws.cell(row=start_row + 3, column=3, value=r['time_hash_ab'])
+        ws.cell(row=start_row + 3, column=4, value=r['time_hash_eve'])
+        ws.cell(row=start_row + 3, column=5, value=r['time_hash_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 3, min_col=1, max_col=5):
+            for cell in row:
+                cell.alignment = center_align
+        current_row = start_row + 6
+
+    for col in range(1, 6):
+        ws.column_dimensions[get_column_letter(col)].width = 38
+    ws.column_dimensions['A'].width = 25
+    wb.save(output_path)
+
+def build_nist_excel(output_path, records):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rekap NIST"
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter NIST").font = header_font
+        for idx, val in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="Jumlah Key Lulus")
+        ws.cell(row=start_row + 1, column=2, value=r['passed_keys_ab'])
+        ws.cell(row=start_row + 1, column=3, value=r['passed_keys_eve'])
+
+        ws.cell(row=start_row + 2, column=1, value="Rata-rata p-value (ApEn)")
+        ws.cell(row=start_row + 2, column=2, value=r['pval_ab'])
+        ws.cell(row=start_row + 2, column=3, value=r['pval_eve'])
+
+        ws.cell(row=start_row + 3, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 3, column=2, value=r['time_nist_ab'])
+        ws.cell(row=start_row + 3, column=3, value=r['time_nist_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 3, min_col=1, max_col=3):
+            for cell in row:
+                cell.alignment = center_align
+        current_row = start_row + 6
+
+    for col in range(1, 4):
+        ws.column_dimensions[get_column_letter(col)].width = 25
+    wb.save(output_path)
+
+def build_bch_sheet(wb, records):
+    ws = wb.create_sheet(title="BCH")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Pengujian Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter BCH").font = header_font
+        for idx, val in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="KDR Setelah koreksi BCH (%)")
+        ws.cell(row=start_row + 1, column=2, value=r['kdr_after_ab'])
+        ws.cell(row=start_row + 1, column=3, value=r['kdr_after_eve'])
+
+        ws.cell(row=start_row + 2, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 2, column=2, value=r['time_bch_ab'])
+        ws.cell(row=start_row + 2, column=3, value=r['time_bch_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 2, min_col=1, max_col=3):
+            for cell in row:
+                cell.alignment = center_align
+
+        current_row = start_row + 5
+
+    for col in range(1, 4):
+        ws.column_dimensions[get_column_letter(col)].width = 25
+
+def build_hash_sheet(wb, records):
+    ws = wb.create_sheet(title="Hash_SHA_AES")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter Hash").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="Jumlah Kunci Cocok (Match)")
+        ws.cell(row=start_row + 1, column=2, value=r['aes_count_ab'])
+        ws.merge_cells(start_row=start_row + 1, start_column=2, end_row=start_row + 1, end_column=3)
+        ws.cell(row=start_row + 1, column=4, value=r['aes_count_eve'])
+        ws.merge_cells(start_row=start_row + 1, start_column=4, end_row=start_row + 1, end_column=5)
+
+        ws.cell(row=start_row + 2, column=1, value="Kunci Pertama (Hex)")
+        ws.cell(row=start_row + 2, column=2, value=r['final_key_alice'])
+        ws.cell(row=start_row + 2, column=3, value=r['final_key_bob'])
+        ws.cell(row=start_row + 2, column=4, value=r['final_key_ea'])
+        ws.cell(row=start_row + 2, column=5, value=r['final_key_eb'])
+
+        ws.cell(row=start_row + 3, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 3, column=2, value=r['time_hash_ab'])
+        ws.cell(row=start_row + 3, column=3, value=r['time_hash_ab'])
+        ws.cell(row=start_row + 3, column=4, value=r['time_hash_eve'])
+        ws.cell(row=start_row + 3, column=5, value=r['time_hash_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 3, min_col=1, max_col=5):
+            for cell in row:
+                cell.alignment = center_align
+        current_row = start_row + 6
+
+    for col in range(1, 6):
+        ws.column_dimensions[get_column_letter(col)].width = 38
+    ws.column_dimensions['A'].width = 25
+
+def build_nist_sheet(wb, records):
+    ws = wb.create_sheet(title="NIST")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        start_row = current_row
+
+        ws.cell(row=start_row, column=1, value="Parameter NIST").font = header_font
+        for idx, val in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="Jumlah Key Lulus")
+        ws.cell(row=start_row + 1, column=2, value=r['passed_keys_ab'])
+        ws.cell(row=start_row + 1, column=3, value=r['passed_keys_eve'])
+
+        ws.cell(row=start_row + 2, column=1, value="Rata-rata p-value (ApEn)")
+        ws.cell(row=start_row + 2, column=2, value=r['pval_ab'])
+        ws.cell(row=start_row + 2, column=3, value=r['pval_eve'])
+
+        ws.cell(row=start_row + 3, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row + 3, column=2, value=r['time_nist_ab'])
+        ws.cell(row=start_row + 3, column=3, value=r['time_nist_eve'])
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 3, min_col=1, max_col=3):
+            for cell in row:
+                cell.alignment = center_align
+        current_row = start_row + 6
+
+    for col in range(1, 4):
+        ws.column_dimensions[get_column_letter(col)].width = 25
 
 # =====================================================================
 # SUMMARY EXCEL BUILDERS (Semua Skenario, Semua Part)
@@ -471,12 +703,15 @@ def build_summary_kuantisasi_excel(output_path, all_records_by_scenario):
 def main():
     print("=== MULTIBIT QUANTIZATION & KALMAN AUTOMATION ===")
     
-    # KITA UBAH BASE DATA KE FOLDER BARU (data_chunked)
-    base_data = "data200"
+    # Sumber data utama tetap dari folder data, pemotongan dilakukan internal.
+    base_data = "data"
     output_base = "Output200"
     
     all_kalman_records = {}
     all_kuan_records = {}
+    all_bch_records = {}
+    all_hash_records = {}
+    all_nist_records = {}
 
     for skenario in SCENARIOS:
         print(f"\n>>>> Memproses Skenario {skenario} <<<<")
@@ -489,35 +724,49 @@ def main():
         
         kalman_records = []
         kuan_records = []
+        bch_records = []
+        hash_records = []
+        nist_records = []
         all_kalman_records[skenario] = kalman_records
         all_kuan_records[skenario] = kuan_records
+        all_bch_records[skenario] = bch_records
+        all_hash_records[skenario] = hash_records
+        all_nist_records[skenario] = nist_records
         
-        part = 1
-        while True:
-            # Iterasi tiap part hasil potongan dari split_data.py
-            path_alice = os.path.join(base_data, "alice", f"skenario{skenario}_mita_alice_part{part}.csv")
-            path_bob   = os.path.join(base_data, "bob", f"skenario{skenario}_mita_bob_part{part}.csv")
-            path_eve_a = os.path.join(base_data, "eve alice", f"skenario{skenario}_mita_evealice_part{part}.csv")
-            path_eve_b = os.path.join(base_data, "eve bob", f"skenario{skenario}_mita_evebob_part{part}.csv")
-            
-            # Jika file alice untuk part ini tidak ada, berarti sudah habis, kita stop perulangan part
-            if not os.path.exists(path_alice):
-                if part == 1:
-                    print(f"Melewati skenario {skenario} karena part 1 tidak ditemukan.")
-                break
-                
+        path_alice = os.path.join(base_data, "alice", f"skenario{skenario}_mita_alice.csv")
+        path_bob   = os.path.join(base_data, "bob", f"skenario{skenario}_mita_bob.csv")
+        path_eve_a = os.path.join(base_data, "eve alice", f"skenario{skenario}_mita_evealice.csv")
+        path_eve_b = os.path.join(base_data, "eve bob", f"skenario{skenario}_mita_evebob.csv")
+
+        raw_alice_full = read_rssi_csv(path_alice)
+        raw_bob_full = read_rssi_csv(path_bob)
+        raw_eve_a_full = read_rssi_csv(path_eve_a)
+        raw_eve_b_full = read_rssi_csv(path_eve_b)
+
+        if not (raw_alice_full and raw_bob_full and raw_eve_a_full and raw_eve_b_full):
+            print(f"Melewati skenario {skenario} karena data file tidak lengkap di direktori.")
+            continue
+
+        total_len = min(len(raw_alice_full), len(raw_bob_full), len(raw_eve_a_full), len(raw_eve_b_full))
+        usable_len = (total_len // CHUNK_SIZE) * CHUNK_SIZE
+        remainder = total_len - usable_len
+        if usable_len == 0:
+            print(f"Melewati skenario {skenario}: panjang data < {CHUNK_SIZE}.")
+            continue
+        if remainder > 0:
+            print(f"Skenario {skenario}: sisa {remainder} data dibuang (chunk = {CHUNK_SIZE}).")
+
+        num_parts = usable_len // CHUNK_SIZE
+        for part in range(1, num_parts + 1):
+            start_idx = (part - 1) * CHUNK_SIZE
+            end_idx = start_idx + CHUNK_SIZE
+            raw_alice = raw_alice_full[start_idx:end_idx]
+            raw_bob = raw_bob_full[start_idx:end_idx]
+            raw_eve_a = raw_eve_a_full[start_idx:end_idx]
+            raw_eve_b = raw_eve_b_full[start_idx:end_idx]
+
             print(f"  --- Memproses Part {part} ---")
-            
-            raw_alice = read_rssi_csv(path_alice)
-            raw_bob = read_rssi_csv(path_bob)
-            raw_eve_a = read_rssi_csv(path_eve_a)
-            raw_eve_b = read_rssi_csv(path_eve_b)
-            
-            if not (raw_alice and raw_bob and raw_eve_a and raw_eve_b):
-                print(f"Data part {part} tidak lengkap, lanjut ke part berikutnya.")
-                part += 1
-                continue
-            
+
             for param in PARAM_VARIATIONS:
                 q, r, bb = param['q'], param['r'], param['bb']
                 
@@ -602,13 +851,72 @@ def main():
                     "kgr_alice": kgr_kuan_a, "kgr_bob": kgr_kuan_b, "kgr_evealice": kgr_kuan_ea, "kgr_evebob": kgr_kuan_eb
                 })
 
-            part += 1
+                # --- 4. BCH, Hash dan NIST Test (Simulasi modul) ---
+                try:
+                    from bch_module import process_bch
+                    b_alice, b_bob, kdr_after_ab, kgr_bch_ab, time_bch_ab = process_bch(bs_a, bs_b)
+                    b_ea, b_eb, kdr_after_eve, kgr_bch_eve, time_bch_eve = process_bch(bs_ea, bs_eb)
+
+                    os.makedirs(os.path.join(skenario_out_dir, "data_excel_bch"), exist_ok=True)
+                    save_data_list(os.path.join(skenario_out_dir, "data_excel_bch"), f"{v_name}_bch_alice.xlsx", b_alice, "alice_bch_bits")
+                    save_data_list(os.path.join(skenario_out_dir, "data_excel_bch"), f"{v_name}_bch_bob.xlsx", b_bob, "bob_bch_bits")
+
+                    bch_records.append({
+                        "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                        "kdr_after_ab": kdr_after_ab, "kdr_after_eve": kdr_after_eve,
+                        "time_bch_ab": time_bch_ab, "time_bch_eve": time_bch_eve
+                    })
+
+                    try:
+                        from hash_module import process_hash
+                        h_alice, h_bob, aes_ab, time_hash_ab = process_hash(b_alice, b_bob)
+                        h_ea, h_eb, aes_eve, time_hash_eve = process_hash(b_ea, b_eb)
+
+                        os.makedirs(os.path.join(skenario_out_dir, "data_excel_hash"), exist_ok=True)
+                        save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_alice.xlsx", h_alice, "AES_keys")
+                        save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_bob.xlsx", h_bob, "AES_keys")
+                        save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_evealice.xlsx", h_ea, "AES_keys")
+                        save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_evebob.xlsx", h_eb, "AES_keys")
+
+                        hash_records.append({
+                            "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                            "aes_count_ab": len(aes_ab), "aes_count_eve": len(aes_eve),
+                            "final_key_alice": h_alice[0] if len(h_alice) > 0 else "N/A",
+                            "final_key_bob": h_bob[0] if len(h_bob) > 0 else "N/A",
+                            "final_key_ea": h_ea[0] if len(h_ea) > 0 else "N/A",
+                            "final_key_eb": h_eb[0] if len(h_eb) > 0 else "N/A",
+                            "time_hash_ab": time_hash_ab, "time_hash_eve": time_hash_eve
+                        })
+
+                        try:
+                            from nist_module import process_nist
+                            pass_ab, pval_ab, time_nist_ab = process_nist(aes_ab)
+                            pass_eve, pval_eve, time_nist_eve = process_nist(aes_eve)
+
+                            nist_records.append({
+                                "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                                "passed_keys_ab": pass_ab, "passed_keys_eve": pass_eve,
+                                "pval_ab": pval_ab, "pval_eve": pval_eve,
+                                "time_nist_ab": time_nist_ab, "time_nist_eve": time_nist_eve
+                            })
+                        except Exception as e:
+                            print("NIST Modul Error:", e)
+
+                    except Exception as e:
+                        print("Hash Modul Error:", e)
+                except ImportError:
+                    print("Modul BCH Belum ditaruh di root folder!")
             
         # Mengukir Tabel Excel untuk Skenario 
         print(f" == Menyusun File Table Laporan untuk Skenario {skenario} ==")
-        if kalman_records and kuan_records:
-            build_kalman_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kalman.xlsx"), kalman_records)
-            build_kuantisasi_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kuantisasi.xlsx"), kuan_records)
+        build_kalman_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kalman.xlsx"), kalman_records)
+        build_kuantisasi_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kuantisasi.xlsx"), kuan_records)
+        if bch_records:
+            build_bch_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_BCH.xlsx"), bch_records)
+        if hash_records:
+            build_hash_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Hash.xlsx"), hash_records)
+        if nist_records:
+            build_nist_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_NIST.xlsx"), nist_records)
         print("Selesai diproses untuk Skenario", skenario)
 
     # =====================================================================
@@ -617,6 +925,9 @@ def main():
     print("\n=== Menyusun Rekap Keseluruhan ===")
     summary_kalman_path = os.path.join(output_base, "Rekap_Keseluruhan_Kalman.xlsx")
     summary_kuan_path = os.path.join(output_base, "Rekap_Keseluruhan_Kuantisasi.xlsx")
+    summary_bch_path = os.path.join(output_base, "Rekap_Keseluruhan_BCH.xlsx")
+    summary_hash_path = os.path.join(output_base, "Rekap_Keseluruhan_Hash.xlsx")
+    summary_nist_path = os.path.join(output_base, "Rekap_Keseluruhan_NIST.xlsx")
 
     # Hanya buat jika ada data
     if any(all_kalman_records.values()):
@@ -628,6 +939,41 @@ def main():
         build_summary_kuantisasi_excel(summary_kuan_path, all_kuan_records)
     else:
         print("  [SKIP] Tidak ada data Kuantisasi untuk direkap.")
+
+    print("\n==== MERANGKUM SELURUH SKENARIO KE DALAM SATU FILE EXCEL ====")
+    rekap_excel_path = os.path.join(output_base, "Rekap_Evaluasi_SKG_Semua_Skenario.xlsx")
+    rekap_wb = Workbook()
+    if 'Sheet' in rekap_wb.sheetnames:
+        rekap_wb.remove(rekap_wb['Sheet'])
+
+    print("Menyusun sheet Kalman...")
+    if any(all_kalman_records.values()):
+        build_kalman_sheet(rekap_wb, [rec for records in all_kalman_records.values() for rec in records])
+
+    print("Menyusun sheet Kuantisasi...")
+    if any(all_kuan_records.values()):
+        build_kuantisasi_sheet(rekap_wb, [rec for records in all_kuan_records.values() for rec in records])
+
+    if any(all_bch_records.values()):
+        print("Menyusun sheet BCH...")
+        build_bch_sheet(rekap_wb, [rec for records in all_bch_records.values() for rec in records])
+    else:
+        print("  [SKIP] Tidak ada data BCH untuk direkap.")
+
+    if any(all_hash_records.values()):
+        print("Menyusun sheet Hash...")
+        build_hash_sheet(rekap_wb, [rec for records in all_hash_records.values() for rec in records])
+    else:
+        print("  [SKIP] Tidak ada data Hash untuk direkap.")
+
+    if any(all_nist_records.values()):
+        print("Menyusun sheet NIST...")
+        build_nist_sheet(rekap_wb, [rec for records in all_nist_records.values() for rec in records])
+    else:
+        print("  [SKIP] Tidak ada data NIST untuk direkap.")
+
+    rekap_wb.save(rekap_excel_path)
+    print(f"Selesai! File rekap global berhasil disimpan di: {rekap_excel_path}")
 
     print("\n=== SELESAI SEMUA PROSES ===")
 
