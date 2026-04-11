@@ -1,4 +1,4 @@
-import os
+﻿import os
 import csv
 import numpy as np
 import pandas as pd
@@ -323,200 +323,6 @@ def build_nist_excel(output_path, records):
         
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
     wb.save(output_path)
-
-def build_kalman_sheet(wb, records):
-    ws = wb.create_sheet(title="Kalman")
-    header_font = Font(bold=True)
-    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    
-    current_row = 1
-    for r in records:
-        title_val = f"Pengujian Skenario {r['skenario']} - Saat Q = {r['q']}, R = {r['r']}, BB = {r['bb']}"
-        ws.cell(row=current_row, column=1, value=title_val).font = Font(bold=True, italic=True)
-        current_row += 2
-        
-        start_row = current_row
-        ws.cell(row=start_row, column=1, value="Parameter").font = header_font
-        ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row+1, end_column=1)
-        
-        ws.cell(row=start_row, column=2, value="Sebelum Praproses").font = header_font
-        ws.merge_cells(start_row=start_row, start_column=2, end_row=start_row, end_column=5)
-        
-        ws.cell(row=start_row, column=6, value="Setelah Praproses").font = header_font
-        ws.merge_cells(start_row=start_row, start_column=6, end_row=start_row, end_column=9)
-        
-        cols_names = ["Alice", "Bob", "Eve-Alice", "Eve-Bob", "Alice", "Bob", "Eve-Alice", "Eve-Bob"]
-        for idx, cname in enumerate(cols_names):
-            ws.cell(row=start_row+1, column=2+idx, value=cname).font = header_font
-            
-        ws.cell(row=start_row+2, column=1, value="Maksimum (dBm)")
-        vals_max = [r['orig_max_alice'], r['orig_max_bob'], r['orig_max_evealice'], r['orig_max_evebob'], r['kalman_max_alice'], r['kalman_max_bob'], r['kalman_max_evealice'], r['kalman_max_evebob']]
-        for idx, val in enumerate(vals_max): ws.cell(row=start_row+2, column=2+idx, value=val)
-            
-        ws.cell(row=start_row+3, column=1, value="Minimum (dBm)")
-        vals_min = [r['orig_min_alice'], r['orig_min_bob'], r['orig_min_evealice'], r['orig_min_evebob'], r['kalman_min_alice'], r['kalman_min_bob'], r['kalman_min_evealice'], r['kalman_min_evebob']]
-        for idx, val in enumerate(vals_min): ws.cell(row=start_row+3, column=2+idx, value=val)
-            
-        ws.cell(row=start_row+4, column=1, value="Koefisien Korelasi")
-        ws.cell(row=start_row+4, column=2, value=r['orig_corr_ab'])
-        ws.merge_cells(start_row=start_row+4, start_column=2, end_row=start_row+4, end_column=3)
-        ws.cell(row=start_row+4, column=4, value=r['orig_corr_eve'])
-        ws.merge_cells(start_row=start_row+4, start_column=4, end_row=start_row+4, end_column=5)
-        ws.cell(row=start_row+4, column=6, value=r['kalman_corr_ab'])
-        ws.merge_cells(start_row=start_row+4, start_column=6, end_row=start_row+4, end_column=7)
-        ws.cell(row=start_row+4, column=8, value=r['kalman_corr_eve'])
-        ws.merge_cells(start_row=start_row+4, start_column=8, end_row=start_row+4, end_column=9)
-        
-        ws.cell(row=start_row+5, column=1, value="Waktu Komputasi (s)")
-        ws.merge_cells(start_row=start_row+5, start_column=1, end_row=start_row+5, end_column=5)
-        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]): ws.cell(row=start_row+5, column=6+idx, value=val)
-            
-        ws.cell(row=start_row+6, column=1, value="KGR (bit/s)")
-        ws.merge_cells(start_row=start_row+6, start_column=1, end_row=start_row+6, end_column=5)
-        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]): ws.cell(row=start_row+6, column=6+idx, value=val)
-
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+6, min_col=1, max_col=9):
-            for cell in row: cell.alignment = center_align
-
-        current_row = start_row + 9 
-        
-    for col in range(1, 10): ws.column_dimensions[get_column_letter(col)].width = 17
-    ws.column_dimensions['A'].width = 25
-
-def build_kuantisasi_sheet(wb, records):
-    ws = wb.create_sheet(title="Kuantisasi")
-    header_font = Font(bold=True)
-    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-    current_row = 1
-    for r in records:
-        title_val = f"Pengujian Skenario {r['skenario']} - Saat Q = {r['q']}, R = {r['r']}, BB = {r['bb']}"
-        ws.cell(row=current_row, column=1, value=title_val).font = Font(bold=True, italic=True)
-        current_row += 2
-        
-        start_row = current_row
-        ws.cell(row=start_row, column=1, value="Parameter Performansi").font = header_font
-        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
-        for idx, val in enumerate(cols): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="KDR (%)")
-        ws.cell(row=start_row+1, column=2, value=r['kdr_ab'])
-        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
-        ws.cell(row=start_row+1, column=4, value=r['kdr_eve'])
-        ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
-        
-        ws.cell(row=start_row+2, column=1, value="KGR (bit/s)")
-        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]): ws.cell(row=start_row+2, column=2+idx, value=val)
-            
-        ws.cell(row=start_row+3, column=1, value="Waktu komputasi (s)")
-        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]): ws.cell(row=start_row+3, column=2+idx, value=val)
-            
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+3, min_col=1, max_col=5):
-            for cell in row: cell.alignment = center_align
-
-        current_row = start_row + 6
-        
-    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 20
-
-def build_bch_sheet(wb, records):
-    ws = wb.create_sheet(title="BCH")
-    header_font = Font(bold=True)
-    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-    current_row = 1
-    for r in records:
-        ws.cell(row=current_row, column=1, value=f"Pengujian Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
-        current_row += 2
-        start_row = current_row
-        
-        ws.cell(row=start_row, column=1, value="Parameter BCH").font = header_font
-        for idx, val in enumerate(["A & B", "E-A & E-B"]): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="KDR Setelah koreksi BCH (%)")
-        ws.cell(row=start_row+1, column=2, value=r['kdr_after_ab'])
-        ws.cell(row=start_row+1, column=3, value=r['kdr_after_eve'])
-        
-        ws.cell(row=start_row+2, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+2, column=2, value=r['time_bch_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['time_bch_eve'])
-        
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+2, min_col=1, max_col=3):
-            for cell in row: cell.alignment = center_align
-            
-        current_row = start_row + 5
-        
-    for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
-
-def build_hash_sheet(wb, records):
-    ws = wb.create_sheet(title="Hash_SHA_AES")
-    header_font = Font(bold=True)
-    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    current_row = 1
-    for r in records:
-        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
-        current_row += 2
-        start_row = current_row
-        
-        ws.cell(row=start_row, column=1, value="Parameter Hash").font = header_font
-        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
-        for idx, val in enumerate(cols): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="Jumlah Kunci Cocok (Match)")
-        ws.cell(row=start_row+1, column=2, value=r['aes_count_ab'])
-        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
-        ws.cell(row=start_row+1, column=4, value=r['aes_count_eve'])
-        ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
-        
-        ws.cell(row=start_row+2, column=1, value="Kunci Pertama (Hex)")
-        ws.cell(row=start_row+2, column=2, value=r['final_key_alice'])
-        ws.cell(row=start_row+2, column=3, value=r['final_key_bob'])
-        ws.cell(row=start_row+2, column=4, value=r['final_key_ea'])
-        ws.cell(row=start_row+2, column=5, value=r['final_key_eb'])
-        
-        ws.cell(row=start_row+3, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+3, column=2, value=r['time_hash_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['time_hash_ab'])
-        ws.cell(row=start_row+3, column=4, value=r['time_hash_eve'])
-        ws.cell(row=start_row+3, column=5, value=r['time_hash_eve'])
-        
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+3, min_col=1, max_col=5):
-            for cell in row: cell.alignment = center_align
-        current_row = start_row + 6
-        
-    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 38
-    ws.column_dimensions['A'].width = 25
-
-def build_nist_sheet(wb, records):
-    ws = wb.create_sheet(title="NIST")
-    header_font = Font(bold=True)
-    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    current_row = 1
-    for r in records:
-        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
-        current_row += 2
-        start_row = current_row
-        
-        ws.cell(row=start_row, column=1, value="Parameter NIST").font = header_font
-        for idx, val in enumerate(["A & B", "E-A & E-B"]): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="Jumlah Key Lulus")
-        ws.cell(row=start_row+1, column=2, value=r['passed_keys_ab'])
-        ws.cell(row=start_row+1, column=3, value=r['passed_keys_eve'])
-        
-        ws.cell(row=start_row+2, column=1, value="Rata-rata p-value (ApEn)")
-        ws.cell(row=start_row+2, column=2, value=r['pval_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['pval_eve'])
-        
-        ws.cell(row=start_row+3, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+3, column=2, value=r['time_nist_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['time_nist_eve'])
-        
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+3, min_col=1, max_col=3):
-            for cell in row: cell.alignment = center_align
-        current_row = start_row + 6
-        
-    for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
-
 # =====================================================================
 # MAIN ENTRY POINT
 # =====================================================================
@@ -524,13 +330,6 @@ def main():
     print("=== FULL SECRET KEY GENERATION (SKG) AUTOMATION ===")
     base_data = "data"
     output_base = "Output"
-    
-    # === Inisialisasi list untuk rekap global semua skenario ===
-    global_kalman_records = []
-    global_kuan_records = []
-    global_bch_records = []
-    global_hash_records = []
-    global_nist_records = []
     
     for skenario in SCENARIOS:
         print(f"\n>>>> Memproses Skenario {skenario} <<<<")
@@ -721,45 +520,7 @@ def main():
             build_nist_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_NIST.xlsx"), nist_records)
             
         print("Selesai diproses untuk Skenario", skenario)
-        
-        # Tambahkan ke dictionary global untuk rekap semua skenario nanti
-        global_kalman_records.extend(kalman_records)
-        global_kuan_records.extend(kuan_records)
-        if bch_records: global_bch_records.extend(bch_records)
-        if hash_records: global_hash_records.extend(hash_records)
-        if nist_records: global_nist_records.extend(nist_records)
-
-    # === GENERATE GLOBAL REKAP ===
-    print("\n==== MERANGKUM SELURUH SKENARIO KE DALAM SATU FILE EXCEL ====")
-    rekap_excel_path = os.path.join(output_base, "Rekap_Evaluasi_SKG_Semua_Skenario.xlsx")
-    
-    # Buat workbook kosong
-    rekap_wb = Workbook()
-    
-    # Hapus sheet default bawaan ('Sheet')
-    if 'Sheet' in rekap_wb.sheetnames:
-        rekap_wb.remove(rekap_wb['Sheet'])
-        
-    print("Menyusun sheet Kalman...")
-    build_kalman_sheet(rekap_wb, global_kalman_records)
-    
-    print("Menyusun sheet Kuantisasi...")
-    build_kuantisasi_sheet(rekap_wb, global_kuan_records)
-    
-    if global_bch_records:
-        print("Menyusun sheet BCH...")
-        build_bch_sheet(rekap_wb, global_bch_records)
-        
-    if global_hash_records:
-        print("Menyusun sheet Hash...")
-        build_hash_sheet(rekap_wb, global_hash_records)
-        
-    if global_nist_records:
-        print("Menyusun sheet NIST...")
-        build_nist_sheet(rekap_wb, global_nist_records)
-        
-    rekap_wb.save(rekap_excel_path)
-    print(f"Selesai! File rekap global berhasil disimpan di: {rekap_excel_path}")
 
 if __name__ == "__main__":
     main()
+
