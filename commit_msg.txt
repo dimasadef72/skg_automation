@@ -1,0 +1,5 @@
+﻿Add NIST testing scripts for Alice and Bob, and a processing module
+
+- Implemented NIST-like statistical tests in NistAlice.py and NistBob.py, including Approximate Entropy, Frequency, Block Frequency, Cumulative Sums, Runs, and Longest Runs of Ones.
+- Both scripts read single-column CSV files containing bits and output p-values for each test, along with a ranking of keys based on the Approximate Entropy test.
+- Introduced nist_module.py to simulate NIST testing logic, providing a mock implementation for processing hash keys with a simulated average p-value and execution time.
