@@ -649,8 +649,8 @@ def main():
             # --- 4. BCH, Hash dan NIST Test (Simulasi modul) ---
             try:
                 from bch_module import process_bch
-                b_alice, b_bob, kdr_after_ab, kgr_bch_ab, time_bch_ab = process_bch(bs_a, bs_b)
-                b_ea, b_eb, kdr_after_eve, kgr_bch_eve, time_bch_eve = process_bch(bs_ea, bs_eb)
+                b_alice, b_bob, kdr_after_ab, kgr_bch_ab, time_bch_ab = process_bch(bs_a, bs_b, apply_correction=True)
+                b_ea, b_eb, kdr_after_eve, kgr_bch_eve, time_bch_eve = process_bch(bs_ea, bs_eb, apply_correction=False)
                 
                 # Biar user bisa lihat list data array bits nya
                 os.makedirs(os.path.join(skenario_out_dir, "data_excel_bch"), exist_ok=True)

@@ -437,6 +437,267 @@ def build_nist_sheet(wb, records):
     for col in range(1, 4):
         ws.column_dimensions[get_column_letter(col)].width = 25
 
+def build_kalman_sheet(wb, records):
+    ws = wb.create_sheet(title="Kalman")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    current_row = 1
+    for r in records:
+        title_val = f"Pengujian Skenario {r['skenario']} - Saat Q = {r['q']}, R = {r['r']}, BB = {r['bb']}"
+        ws.cell(row=current_row, column=1, value=title_val).font = Font(bold=True, italic=True)
+        current_row += 2
+
+        start_row = current_row
+        ws.cell(row=start_row, column=1, value="Parameter").font = header_font
+        ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row + 1, end_column=1)
+
+        ws.cell(row=start_row, column=2, value="Sebelum Praproses").font = header_font
+        ws.merge_cells(start_row=start_row, start_column=2, end_row=start_row, end_column=5)
+
+        ws.cell(row=start_row, column=6, value="Setelah Praproses").font = header_font
+        ws.merge_cells(start_row=start_row, start_column=6, end_row=start_row, end_column=9)
+
+        cols_names = ["Alice", "Bob", "Eve-Alice", "Eve-Bob", "Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, cname in enumerate(cols_names):
+            ws.cell(row=start_row + 1, column=2 + idx, value=cname).font = header_font
+
+        ws.cell(row=start_row + 2, column=1, value="Maksimum (dBm)")
+        vals_max = [
+            r['orig_max_alice'], r['orig_max_bob'], r['orig_max_evealice'], r['orig_max_evebob'],
+            r['kalman_max_alice'], r['kalman_max_bob'], r['kalman_max_evealice'], r['kalman_max_evebob']
+        ]
+        for idx, val in enumerate(vals_max):
+            ws.cell(row=start_row + 2, column=2 + idx, value=val)
+
+        ws.cell(row=start_row + 3, column=1, value="Minimum (dBm)")
+        vals_min = [
+            r['orig_min_alice'], r['orig_min_bob'], r['orig_min_evealice'], r['orig_min_evebob'],
+            r['kalman_min_alice'], r['kalman_min_bob'], r['kalman_min_evealice'], r['kalman_min_evebob']
+        ]
+        for idx, val in enumerate(vals_min):
+            ws.cell(row=start_row + 3, column=2 + idx, value=val)
+
+        ws.cell(row=start_row + 4, column=1, value="Koefisien Korelasi")
+        ws.cell(row=start_row + 4, column=2, value=r['orig_corr_ab'])
+        ws.merge_cells(start_row=start_row + 4, start_column=2, end_row=start_row + 4, end_column=3)
+        ws.cell(row=start_row + 4, column=4, value=r['orig_corr_eve'])
+        ws.merge_cells(start_row=start_row + 4, start_column=4, end_row=start_row + 4, end_column=5)
+        ws.cell(row=start_row + 4, column=6, value=r['kalman_corr_ab'])
+        ws.merge_cells(start_row=start_row + 4, start_column=6, end_row=start_row + 4, end_column=7)
+        ws.cell(row=start_row + 4, column=8, value=r['kalman_corr_eve'])
+        ws.merge_cells(start_row=start_row + 4, start_column=8, end_row=start_row + 4, end_column=9)
+
+        ws.cell(row=start_row + 5, column=1, value="Waktu Komputasi (s)")
+        ws.merge_cells(start_row=start_row + 5, start_column=1, end_row=start_row + 5, end_column=5)
+        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]):
+            ws.cell(row=start_row + 5, column=6 + idx, value=val)
+
+        ws.cell(row=start_row + 6, column=1, value="KGR (bit/s)")
+        ws.merge_cells(start_row=start_row + 6, start_column=1, end_row=start_row + 6, end_column=5)
+        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]):
+            ws.cell(row=start_row + 6, column=6 + idx, value=val)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 6, min_col=1, max_col=9):
+            for cell in row:
+                cell.alignment = center_align
+
+        current_row = start_row + 9
+
+    for col in range(1, 10):
+        ws.column_dimensions[get_column_letter(col)].width = 17
+    ws.column_dimensions['A'].width = 25
+
+    # =================================================================
+    # TABEL RATA-RATA KALMAN (diletakkan di kanan tabel existing)
+    # =================================================================
+    def _base_skenario_label(val):
+        txt = str(val)
+        if "(Part" in txt:
+            return txt.split(" (Part")[0].strip()
+        return txt
+
+    def _mean_numeric(values):
+        nums = []
+        for v in values:
+            try:
+                nums.append(float(v))
+            except:
+                continue
+        if not nums:
+            return "N/A"
+        return float(np.mean(nums))
+
+    avg_start_col = 12  # Kolom L
+    avg_row = 1
+    seen = []
+    grouped = {}
+
+    for rec in records:
+        key = (_base_skenario_label(rec['skenario']), rec['q'], rec['r'], rec['bb'])
+        if key not in grouped:
+            grouped[key] = []
+            seen.append(key)
+        grouped[key].append(rec)
+
+    for skenario_label, q, r, bb in seen:
+        recs = grouped[(skenario_label, q, r, bb)]
+
+        title_val = f"Pengujian Skenario {skenario_label} - Saat Q = {q}, R = {r}, BB = {bb}"
+        ws.cell(row=avg_row, column=avg_start_col, value=title_val).font = Font(bold=True, italic=True)
+        ws.merge_cells(start_row=avg_row, start_column=avg_start_col, end_row=avg_row, end_column=avg_start_col + 4)
+        avg_row += 2
+
+        start_row = avg_row
+        ws.cell(row=start_row, column=avg_start_col, value="Parameter\nKalman Filter").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=avg_start_col + 1 + idx, value=val).font = header_font
+
+        avg_corr_ab = _mean_numeric([r['kalman_corr_ab'] for r in recs])
+        avg_corr_eve = _mean_numeric([r['kalman_corr_eve'] for r in recs])
+        avg_kgr_alice = _mean_numeric([r['kgr_alice'] for r in recs])
+        avg_kgr_bob = _mean_numeric([r['kgr_bob'] for r in recs])
+        avg_kgr_ea = _mean_numeric([r['kgr_evealice'] for r in recs])
+        avg_kgr_eb = _mean_numeric([r['kgr_evebob'] for r in recs])
+
+        ws.cell(row=start_row + 1, column=avg_start_col, value="Koefisien Korelasi")
+        ws.cell(row=start_row + 1, column=avg_start_col + 1, value=avg_corr_ab)
+        ws.merge_cells(start_row=start_row + 1, start_column=avg_start_col + 1, end_row=start_row + 1, end_column=avg_start_col + 2)
+        ws.cell(row=start_row + 1, column=avg_start_col + 3, value=avg_corr_eve)
+        ws.merge_cells(start_row=start_row + 1, start_column=avg_start_col + 3, end_row=start_row + 1, end_column=avg_start_col + 4)
+
+        ws.cell(row=start_row + 2, column=avg_start_col, value="KGR (bit/s)")
+        ws.cell(row=start_row + 2, column=avg_start_col + 1, value=avg_kgr_alice)
+        ws.cell(row=start_row + 2, column=avg_start_col + 2, value=avg_kgr_bob)
+        ws.cell(row=start_row + 2, column=avg_start_col + 3, value=avg_kgr_ea)
+        ws.cell(row=start_row + 2, column=avg_start_col + 4, value=avg_kgr_eb)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 2, min_col=avg_start_col, max_col=avg_start_col + 4):
+            for cell in row:
+                cell.alignment = center_align
+
+        avg_row = start_row + 5
+
+    ws.column_dimensions[get_column_letter(avg_start_col)].width = 25
+    for col in range(avg_start_col + 1, avg_start_col + 5):
+        ws.column_dimensions[get_column_letter(col)].width = 18
+
+def build_kuantisasi_sheet(wb, records):
+    ws = wb.create_sheet(title="Kuantisasi")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    current_row = 1
+    for r in records:
+        title_val = f"Pengujian Skenario {r['skenario']} - Saat Q = {r['q']}, R = {r['r']}, BB = {r['bb']}"
+        ws.cell(row=current_row, column=1, value=title_val).font = Font(bold=True, italic=True)
+        current_row += 2
+
+        start_row = current_row
+        ws.cell(row=start_row, column=1, value="Parameter Performansi").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=2 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=1, value="KDR (%)")
+        ws.cell(row=start_row + 1, column=2, value=r['kdr_ab'])
+        ws.merge_cells(start_row=start_row + 1, start_column=2, end_row=start_row + 1, end_column=3)
+        ws.cell(row=start_row + 1, column=4, value=r['kdr_eve'])
+        ws.merge_cells(start_row=start_row + 1, start_column=4, end_row=start_row + 1, end_column=5)
+
+        ws.cell(row=start_row + 2, column=1, value="KGR (bit/s)")
+        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]):
+            ws.cell(row=start_row + 2, column=2 + idx, value=val)
+
+        ws.cell(row=start_row + 3, column=1, value="Waktu komputasi (s)")
+        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]):
+            ws.cell(row=start_row + 3, column=2 + idx, value=val)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 3, min_col=1, max_col=5):
+            for cell in row:
+                cell.alignment = center_align
+
+        current_row = start_row + 6
+
+    for col in range(1, 6):
+        ws.column_dimensions[get_column_letter(col)].width = 20
+
+    # =================================================================
+    # TABEL RATA-RATA KUANTISASI (diletakkan di kanan tabel existing)
+    # =================================================================
+    def _base_skenario_label(val):
+        txt = str(val)
+        if "(Part" in txt:
+            return txt.split(" (Part")[0].strip()
+        return txt
+
+    def _mean_numeric(values):
+        nums = []
+        for v in values:
+            try:
+                nums.append(float(v))
+            except:
+                continue
+        if not nums:
+            return "N/A"
+        return float(np.mean(nums))
+
+    avg_start_col = 8  # Kolom H
+    avg_row = 1
+    seen = []
+    grouped = {}
+
+    for rec in records:
+        key = (_base_skenario_label(rec['skenario']), rec['q'], rec['r'], rec['bb'])
+        if key not in grouped:
+            grouped[key] = []
+            seen.append(key)
+        grouped[key].append(rec)
+
+    for skenario_label, q, r, bb in seen:
+        recs = grouped[(skenario_label, q, r, bb)]
+
+        title_val = f"Pengujian Skenario {skenario_label} - Saat Q = {q}, R = {r}, BB = {bb}"
+        ws.cell(row=avg_row, column=avg_start_col, value=title_val).font = Font(bold=True, italic=True)
+        ws.merge_cells(start_row=avg_row, start_column=avg_start_col, end_row=avg_row, end_column=avg_start_col + 4)
+        avg_row += 2
+
+        start_row = avg_row
+        ws.cell(row=start_row, column=avg_start_col, value="Parameter\nPerformansi").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=avg_start_col + 1 + idx, value=val).font = header_font
+
+        avg_kdr_ab = _mean_numeric([r['kdr_ab'] for r in recs])
+        avg_kdr_eve = _mean_numeric([r['kdr_eve'] for r in recs])
+        avg_kgr_alice = _mean_numeric([r['kgr_alice'] for r in recs])
+        avg_kgr_bob = _mean_numeric([r['kgr_bob'] for r in recs])
+        avg_kgr_ea = _mean_numeric([r['kgr_evealice'] for r in recs])
+        avg_kgr_eb = _mean_numeric([r['kgr_evebob'] for r in recs])
+
+        ws.cell(row=start_row + 1, column=avg_start_col, value="KDR (%)")
+        ws.cell(row=start_row + 1, column=avg_start_col + 1, value=avg_kdr_ab)
+        ws.merge_cells(start_row=start_row + 1, start_column=avg_start_col + 1, end_row=start_row + 1, end_column=avg_start_col + 2)
+        ws.cell(row=start_row + 1, column=avg_start_col + 3, value=avg_kdr_eve)
+        ws.merge_cells(start_row=start_row + 1, start_column=avg_start_col + 3, end_row=start_row + 1, end_column=avg_start_col + 4)
+
+        ws.cell(row=start_row + 2, column=avg_start_col, value="KGR (bit/s)")
+        ws.cell(row=start_row + 2, column=avg_start_col + 1, value=avg_kgr_alice)
+        ws.cell(row=start_row + 2, column=avg_start_col + 2, value=avg_kgr_bob)
+        ws.cell(row=start_row + 2, column=avg_start_col + 3, value=avg_kgr_ea)
+        ws.cell(row=start_row + 2, column=avg_start_col + 4, value=avg_kgr_eb)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 2, min_col=avg_start_col, max_col=avg_start_col + 4):
+            for cell in row:
+                cell.alignment = center_align
+
+        avg_row = start_row + 5
+
+    ws.column_dimensions[get_column_letter(avg_start_col)].width = 25
+    for col in range(avg_start_col + 1, avg_start_col + 5):
+        ws.column_dimensions[get_column_letter(col)].width = 18
+
 # =====================================================================
 # SUMMARY EXCEL BUILDERS (Semua Skenario, Semua Part)
 # =====================================================================
@@ -701,7 +962,7 @@ def build_summary_kuantisasi_excel(output_path, all_records_by_scenario):
 # MAIN ENTRY POINT
 # =====================================================================
 def main():
-    print("=== MULTIBIT QUANTIZATION & KALMAN AUTOMATION ===")
+    print("=== FULL SECRET KEY GENERATION (SKG) AUTOMATION ===")
     
     # Sumber data utama tetap dari folder data, pemotongan dilakukan internal.
     base_data = "data"
@@ -854,8 +1115,8 @@ def main():
                 # --- 4. BCH, Hash dan NIST Test (Simulasi modul) ---
                 try:
                     from bch_module import process_bch
-                    b_alice, b_bob, kdr_after_ab, kgr_bch_ab, time_bch_ab = process_bch(bs_a, bs_b)
-                    b_ea, b_eb, kdr_after_eve, kgr_bch_eve, time_bch_eve = process_bch(bs_ea, bs_eb)
+                    b_alice, b_bob, kdr_after_ab, kgr_bch_ab, time_bch_ab = process_bch(bs_a, bs_b, apply_correction=True)
+                    b_ea, b_eb, kdr_after_eve, kgr_bch_eve, time_bch_eve = process_bch(bs_ea, bs_eb, apply_correction=False)
 
                     os.makedirs(os.path.join(skenario_out_dir, "data_excel_bch"), exist_ok=True)
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_bch"), f"{v_name}_bch_alice.xlsx", b_alice, "alice_bch_bits")

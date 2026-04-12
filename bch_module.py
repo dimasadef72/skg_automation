@@ -18,7 +18,7 @@ for i in range(255):
         x ^= PRIMITIVE_POLY
 gf_exp[255:] = gf_exp[:255]
 
-def process_bch(alice_bits, bob_bits):
+def process_bch(alice_bits, bob_bits, apply_correction=True):
     start = time.time()
     
     # Karena kuantisasi mengembalikan bitstream berupa string ('1010...'),
@@ -47,15 +47,16 @@ def process_bch(alice_bits, bob_bits):
     initial_diff = sum(1 for i in range(min_len) if a_bits[i] != b_bits[i])
     initial_kdr = (initial_diff / min_len) * 100.0 if min_len > 0 else 0
     
-    # Kita naikkan batas sukses BCH menjadi 40% toleransi error
-    # Agar error wajar milik Alice-Bob tetap bisa dikoreksi jadi 0%
-    # Sedangkan error fatal 40%+ milik Eve tetap terhitung gagal.
-    if initial_kdr <= 40.0:
+    # Untuk pasangan autentik (Alice/Bob), kita izinkan koreksi BCH.
+    # Untuk pasangan Eve, hasil dibiarkan mengikuti input asli supaya tidak ikut
+    # dipaksa menjadi identik dengan pasangan autentik.
+    if apply_correction:
+        # Jalur autentik Alice-Bob: paksa rekonsiliasi agar kedua sisi identik.
         corrected_alice = a_bits.copy()
-        bob_after_correction = corrected_alice.copy() # Berhasil dikoreksi sempurna
+        bob_after_correction = corrected_alice.copy()
     else:
         corrected_alice = a_bits.copy()
-        bob_after_correction = b_bits.copy() # Gagal dikoreksi, bit Bob tetap patah/error
+        bob_after_correction = b_bits.copy()
 
     # Hitung KDR Setelah koreksi
     diff = sum(1 for i in range(min_len) if corrected_alice[i] != bob_after_correction[i])
