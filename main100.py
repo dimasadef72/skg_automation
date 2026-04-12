@@ -361,6 +361,66 @@ def build_bch_sheet(wb, records):
     for col in range(1, 4):
         ws.column_dimensions[get_column_letter(col)].width = 25
 
+    # ===============================================================
+    # TABEL RATA-RATA BCH (kanan tabel existing)
+    # ===============================================================
+    def _base_skenario_label(val):
+        txt = str(val)
+        if "(Part" in txt:
+            return txt.split(" (Part")[0].strip()
+        return txt
+
+    def _mean_numeric(values):
+        nums = []
+        for v in values:
+            try:
+                nums.append(float(v))
+            except:
+                continue
+        if not nums:
+            return "N/A"
+        return float(np.mean(nums))
+
+    avg_start_col = 6
+    avg_row = 1
+    seen = []
+    grouped = {}
+
+    for rec in records:
+        key = (_base_skenario_label(rec['skenario']), rec['q'], rec['r'], rec['bb'])
+        if key not in grouped:
+            grouped[key] = []
+            seen.append(key)
+        grouped[key].append(rec)
+
+    for skenario_label, q, r, bb in seen:
+        recs = grouped[(skenario_label, q, r, bb)]
+        avg_kdr_ab = _mean_numeric([r['kdr_after_ab'] for r in recs])
+        avg_kdr_eve = _mean_numeric([r['kdr_after_eve'] for r in recs])
+
+        title_val = f"Pengujian Skenario {skenario_label} - Q={q}, R={r}, BB={bb}"
+        ws.cell(row=avg_row, column=avg_start_col, value=title_val).font = Font(bold=True, italic=True)
+        ws.merge_cells(start_row=avg_row, start_column=avg_start_col, end_row=avg_row, end_column=avg_start_col + 2)
+        avg_row += 2
+
+        start_row = avg_row
+        ws.cell(row=start_row, column=avg_start_col, value="Parameter BCH").font = header_font
+        ws.cell(row=start_row, column=avg_start_col + 1, value="A & B").font = header_font
+        ws.cell(row=start_row, column=avg_start_col + 2, value="E-A & E-B").font = header_font
+
+        ws.cell(row=start_row + 1, column=avg_start_col, value="Rata-rata KDR Setelah koreksi BCH (%)")
+        ws.cell(row=start_row + 1, column=avg_start_col + 1, value=avg_kdr_ab)
+        ws.cell(row=start_row + 1, column=avg_start_col + 2, value=avg_kdr_eve)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 1, min_col=avg_start_col, max_col=avg_start_col + 2):
+            for cell in row:
+                cell.alignment = center_align
+
+        avg_row = start_row + 4
+
+    for col in range(avg_start_col, avg_start_col + 3):
+        ws.column_dimensions[get_column_letter(col)].width = 28
+
 def build_hash_sheet(wb, records):
     ws = wb.create_sheet(title="Hash_SHA_AES")
     header_font = Font(bold=True)
@@ -403,6 +463,77 @@ def build_hash_sheet(wb, records):
         ws.column_dimensions[get_column_letter(col)].width = 38
     ws.column_dimensions['A'].width = 25
 
+    # ===============================================================
+    # TABEL RATA-RATA/REPRESENTATIF HASH (kanan tabel existing)
+    # ===============================================================
+    def _base_skenario_label(val):
+        txt = str(val)
+        if "(Part" in txt:
+            return txt.split(" (Part")[0].strip()
+        return txt
+
+    def _mode_text(values):
+        freq = {}
+        order = {}
+        for idx, v in enumerate(values):
+            s = str(v).strip() if v is not None else ""
+            if not s or s == "N/A":
+                continue
+            if s not in freq:
+                freq[s] = 0
+                order[s] = idx
+            freq[s] += 1
+        if not freq:
+            return "N/A"
+        return sorted(freq.keys(), key=lambda k: (-freq[k], order[k]))[0]
+
+    avg_start_col = 8
+    avg_row = 1
+    seen = []
+    grouped = {}
+
+    for rec in records:
+        key = (_base_skenario_label(rec['skenario']), rec['q'], rec['r'], rec['bb'])
+        if key not in grouped:
+            grouped[key] = []
+            seen.append(key)
+        grouped[key].append(rec)
+
+    for skenario_label, q, r, bb in seen:
+        recs = grouped[(skenario_label, q, r, bb)]
+
+        key_alice = _mode_text([r['final_key_alice'] for r in recs])
+        key_bob = _mode_text([r['final_key_bob'] for r in recs])
+        key_ea = _mode_text([r['final_key_ea'] for r in recs])
+        key_eb = _mode_text([r['final_key_eb'] for r in recs])
+
+        title_val = f"Skenario {skenario_label} - Q={q}, R={r}, BB={bb}"
+        ws.cell(row=avg_row, column=avg_start_col, value=title_val).font = Font(bold=True, italic=True)
+        ws.merge_cells(start_row=avg_row, start_column=avg_start_col, end_row=avg_row, end_column=avg_start_col + 4)
+        avg_row += 2
+
+        start_row = avg_row
+        ws.cell(row=start_row, column=avg_start_col, value="Parameter Hash").font = header_font
+        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
+        for idx, val in enumerate(cols):
+            ws.cell(row=start_row, column=avg_start_col + 1 + idx, value=val).font = header_font
+
+        ws.cell(row=start_row + 1, column=avg_start_col, value="Kunci Representatif (Hex)")
+        ws.cell(row=start_row + 1, column=avg_start_col + 1, value=key_alice)
+        ws.cell(row=start_row + 1, column=avg_start_col + 2, value=key_bob)
+        ws.cell(row=start_row + 1, column=avg_start_col + 3, value=key_ea)
+        ws.cell(row=start_row + 1, column=avg_start_col + 4, value=key_eb)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 1, min_col=avg_start_col, max_col=avg_start_col + 4):
+            for cell in row:
+                cell.alignment = center_align
+
+        avg_row = start_row + 4
+
+    ws.column_dimensions[get_column_letter(avg_start_col)].width = 28
+    for col in range(avg_start_col + 1, avg_start_col + 5):
+        ws.column_dimensions[get_column_letter(col)].width = 38
+
 def build_nist_sheet(wb, records):
     ws = wb.create_sheet(title="NIST")
     header_font = Font(bold=True)
@@ -436,6 +567,86 @@ def build_nist_sheet(wb, records):
 
     for col in range(1, 4):
         ws.column_dimensions[get_column_letter(col)].width = 25
+
+    # ===============================================================
+    # TABEL RATA-RATA NIST (kanan tabel existing)
+    # ===============================================================
+    def _base_skenario_label(val):
+        txt = str(val)
+        if "(Part" in txt:
+            return txt.split(" (Part")[0].strip()
+        return txt
+
+    def _mean_numeric(values):
+        nums = []
+        for v in values:
+            try:
+                nums.append(float(v))
+            except:
+                continue
+        if not nums:
+            return "N/A"
+        return float(np.mean(nums))
+
+    def _sum_numeric(values):
+        total = 0.0
+        found = False
+        for v in values:
+            try:
+                total += float(v)
+                found = True
+            except:
+                continue
+        if not found:
+            return "N/A"
+        return int(round(total))
+
+    avg_start_col = 6
+    avg_row = 1
+    seen = []
+    grouped = {}
+
+    for rec in records:
+        key = (_base_skenario_label(rec['skenario']), rec['q'], rec['r'], rec['bb'])
+        if key not in grouped:
+            grouped[key] = []
+            seen.append(key)
+        grouped[key].append(rec)
+
+    for skenario_label, q, r, bb in seen:
+        recs = grouped[(skenario_label, q, r, bb)]
+
+        total_pass_ab = _sum_numeric([r['passed_keys_ab'] for r in recs])
+        total_pass_eve = _sum_numeric([r['passed_keys_eve'] for r in recs])
+        avg_pval_ab = _mean_numeric([r['pval_ab'] for r in recs])
+        avg_pval_eve = _mean_numeric([r['pval_eve'] for r in recs])
+
+        title_val = f"Skenario {skenario_label} - Q={q}, R={r}, BB={bb}"
+        ws.cell(row=avg_row, column=avg_start_col, value=title_val).font = Font(bold=True, italic=True)
+        ws.merge_cells(start_row=avg_row, start_column=avg_start_col, end_row=avg_row, end_column=avg_start_col + 2)
+        avg_row += 2
+
+        start_row = avg_row
+        ws.cell(row=start_row, column=avg_start_col, value="Parameter NIST").font = header_font
+        ws.cell(row=start_row, column=avg_start_col + 1, value="A & B").font = header_font
+        ws.cell(row=start_row, column=avg_start_col + 2, value="E-A & E-B").font = header_font
+
+        ws.cell(row=start_row + 1, column=avg_start_col, value="Total Jumlah Key Lulus")
+        ws.cell(row=start_row + 1, column=avg_start_col + 1, value=total_pass_ab)
+        ws.cell(row=start_row + 1, column=avg_start_col + 2, value=total_pass_eve)
+
+        ws.cell(row=start_row + 2, column=avg_start_col, value="Rata-rata p-value (ApEn)")
+        ws.cell(row=start_row + 2, column=avg_start_col + 1, value=avg_pval_ab)
+        ws.cell(row=start_row + 2, column=avg_start_col + 2, value=avg_pval_eve)
+
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row + 2, min_col=avg_start_col, max_col=avg_start_col + 2):
+            for cell in row:
+                cell.alignment = center_align
+
+        avg_row = start_row + 5
+
+    for col in range(avg_start_col, avg_start_col + 3):
+        ws.column_dimensions[get_column_letter(col)].width = 30
 
 def build_kalman_sheet(wb, records):
     ws = wb.create_sheet(title="Kalman")
