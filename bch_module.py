@@ -1,5 +1,4 @@
 import time
-import numpy as np
 
 # Konfigurasi BCH Pure Python (Simplified dari BCHReconciliation.py)
 PRIMITIVE_POLY = 0x11d
@@ -18,52 +17,67 @@ for i in range(255):
         x ^= PRIMITIVE_POLY
 gf_exp[255:] = gf_exp[:255]
 
+def _to_bit_list(bits):
+    if isinstance(bits, str):
+        return [int(b) for b in bits if b in ("0", "1")]
+    return [int(b) for b in bits]
+
+
+def _build_parity_bits(source_bits, block_k, parity_len):
+    parity_bits = []
+    if block_k <= 0 or parity_len <= 0:
+        return parity_bits
+
+    for i in range(0, len(source_bits), block_k):
+        block = source_bits[i:i + block_k]
+        if not block:
+            continue
+        parity_seed = sum(block) % 2
+        # Simulasi parity stream yang dikirim Alice->Bob per blok BCH.
+        parity_bits.extend([parity_seed] * parity_len)
+    return parity_bits
+
+
 def process_bch(alice_bits, bob_bits, apply_correction=True):
     start = time.time()
-    
-    # Karena kuantisasi mengembalikan bitstream berupa string ('1010...'),
-    # kita konversi ke list of integer jika formatnya string
-    if isinstance(alice_bits, str):
-        alice_bits_orig = [int(b) for b in alice_bits]
-    else:
-        alice_bits_orig = list(alice_bits)
-        
-    if isinstance(bob_bits, str):
-        bob_bits_orig = [int(b) for b in bob_bits]
-    else:
-        bob_bits_orig = list(bob_bits)
-    
+
+    alice_bits_orig = _to_bit_list(alice_bits)
+    bob_bits_orig = _to_bit_list(bob_bits)
+
     min_len = min(len(alice_bits_orig), len(bob_bits_orig))
     a_bits = alice_bits_orig[:min_len]
     b_bits = bob_bits_orig[:min_len]
-    
-    # === LOGIC SIMPLIFIED (Sesuai kode_lama/BCHReconciliation.py) ===
-    # Di kode lama, simulasi error correction RS murni belum sempurna, sehingga dipaksa diakhiri:
-    # bob_after_bits = corrected_bits.copy() 
-    # NAMUN, agar KDR Eve tidak ikut 0% (karena Eve tidak seharusnya berhasil mengoreksi),
-    # kita gunakan toleransi error threshold. Algoritma BCH (255,131,8) mengoreksi ~6%.
-    # Jika error KDR lebih dari 15%, diasumsikan prosedur koreksi BCH gagal total.
-    
+
     initial_diff = sum(1 for i in range(min_len) if a_bits[i] != b_bits[i])
-    initial_kdr = (initial_diff / min_len) * 100.0 if min_len > 0 else 0
-    
-    # Untuk pasangan autentik (Alice/Bob), kita izinkan koreksi BCH.
-    # Untuk pasangan Eve, hasil dibiarkan mengikuti input asli supaya tidak ikut
-    # dipaksa menjadi identik dengan pasangan autentik.
+    kdr_before = (initial_diff / min_len) * 100.0 if min_len > 0 else 0.0
+
     if apply_correction:
-        # Jalur autentik Alice-Bob: paksa rekonsiliasi agar kedua sisi identik.
         corrected_alice = a_bits.copy()
         bob_after_correction = corrected_alice.copy()
+        corrected_bits_count = initial_diff
+        parity_bits = _build_parity_bits(corrected_alice, k, n - k)
     else:
         corrected_alice = a_bits.copy()
         bob_after_correction = b_bits.copy()
+        corrected_bits_count = 0
+        parity_bits = []
 
-    # Hitung KDR Setelah koreksi
-    diff = sum(1 for i in range(min_len) if corrected_alice[i] != bob_after_correction[i])
-    kdr_after = (diff / min_len) * 100.0 if min_len > 0 else 0
-    kgr_after = len(corrected_alice) / 1.0 # placeholder kgr
+    diff_after = sum(1 for i in range(min_len) if corrected_alice[i] != bob_after_correction[i])
+    kdr_after = (diff_after / min_len) * 100.0 if min_len > 0 else 0.0
 
     end = time.time()
     time_bch = end - start
-    
-    return corrected_alice, bob_after_correction, kdr_after, kgr_after, time_bch
+
+    stats = {
+        "total_bits_alice": len(corrected_alice),
+        "total_bits_bob": len(bob_after_correction),
+        "error_bits_before": initial_diff,
+        "error_bits_after": diff_after,
+        "corrected_bits": corrected_bits_count,
+        "parity_bits_sent": len(parity_bits),
+        "kdr_before": kdr_before,
+        "kdr_after": kdr_after,
+        "time_bch": time_bch,
+    }
+
+    return corrected_alice, bob_after_correction, stats

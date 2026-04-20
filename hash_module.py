@@ -82,5 +82,17 @@ def process_hash(alice_bits, bob_bits, hashtable_path='Hashtable128.csv'):
 
     end = time.time()
     time_hash = end - start
-    
-    return hex_alice, hex_bob, aes_keys, time_hash
+
+    metrics = {
+        "input_bits_alice": len(alice_bits),
+        "input_bits_bob": len(bob_bits),
+        "keys_count_alice": len(keys_alice),
+        "keys_count_bob": len(keys_bob),
+        "total_key_bits_alice": len(keys_alice) * 128,
+        "total_key_bits_bob": len(keys_bob) * 128,
+        "matched_key_count": len(aes_keys),
+        "matched_key_bits": len(aes_keys) * 128,
+        "time_hash": time_hash,
+    }
+
+    return hex_alice, hex_bob, aes_keys, time_hash, metrics
