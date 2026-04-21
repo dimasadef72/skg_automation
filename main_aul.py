@@ -27,19 +27,17 @@ CHANPROB_TIME_SECONDS = 120.0  # Hardcoded sementara sesuai arahan: waktu channe
 # Variasi Parameter Pengujian Skenario
 PARAM_VARIATIONS = [
     {"q": 0.01, "r": 0.5, "bb": 1},
-    {"q": 0.01, "r": 0.5, "bb": 5},
-    {"q": 0.01, "r": 0.5, "bb": 50},
-    {"q": 0.01, "r": 0.5, "bb": 100},
+    {"q": 0.01, "r": 0.5, "bb": 500},
     {"q": 0.01, "r": 0.5, "bb": 200},
+    {"q": 0.01, "r": 0.5, "bb": 100},
     {"q": 0.5, "r": 0.01, "bb": 1},
-    {"q": 0.5, "r": 0.01, "bb": 5},
-    {"q": 0.5, "r": 0.01, "bb": 50},
-    {"q": 0.5, "r": 0.01, "bb": 100},
+    {"q": 0.5, "r": 0.01, "bb": 500},
     {"q": 0.5, "r": 0.01, "bb": 200},
+    {"q": 0.5, "r": 0.01, "bb": 100},
 ]
 
 # Skenario iterasi 1 - 4
-SCENARIOS = [1, 2, 3, 4]
+SCENARIOS = [1, 2, 3]
 
 # =====================================================================
 # UTILITY FUNCTIONS
@@ -643,8 +641,8 @@ def build_nist_sheet(wb, records):
 # =====================================================================
 def main():
     print("=== FULL SECRET KEY GENERATION (SKG) AUTOMATION ===")
-    base_data = "data"
-    output_base = "Output"
+    base_data = "data_aul"
+    output_base = "Output_aul"
     
     # === Inisialisasi list untuk rekap global semua skenario ===
     global_kalman_records = []
@@ -656,10 +654,10 @@ def main():
     for skenario in SCENARIOS:
         print(f"\n>>>> Memproses Skenario {skenario} <<<<")
         
-        path_alice = os.path.join(base_data, "alice", f"skenario{skenario}_mita_alice.csv")
-        path_bob   = os.path.join(base_data, "bob", f"skenario{skenario}_mita_bob.csv")
-        path_eve_a = os.path.join(base_data, "eve alice", f"skenario{skenario}_mita_evealice.csv")
-        path_eve_b = os.path.join(base_data, "eve bob", f"skenario{skenario}_mita_evebob.csv")
+        path_alice = os.path.join(base_data, "alice", f"skenario{skenario}_aul_alice.csv")
+        path_bob   = os.path.join(base_data, "bob", f"skenario{skenario}_aul_bob.csv")
+        path_eve_a = os.path.join(base_data, "eve alice", f"skenario{skenario}_aul_eve_alice.csv")
+        path_eve_b = os.path.join(base_data, "eve bob", f"skenario{skenario}_aul_eve_bob.csv")
         
         raw_alice = read_rssi_csv(path_alice)
         raw_bob = read_rssi_csv(path_bob)
@@ -688,6 +686,14 @@ def main():
             
             total_len = min(len(raw_alice), len(raw_bob), len(raw_eve_a), len(raw_eve_b))
             cut_len = (total_len // bb) * bb
+
+            # Waktu channel probing diskala proporsional sesuai jumlah sampel
+            # yang benar-benar dipakai oleh Kalman (cut_len sampel dari total_len).
+            # Ini memastikan KGR berubah sesuai BB, bukan selalu dibagi 120 detik penuh.
+            if total_len > 0:
+                chanprob_time_scaled = (cut_len / total_len) * CHANPROB_TIME_SECONDS
+            else:
+                chanprob_time_scaled = CHANPROB_TIME_SECONDS
 
             # Pre-processing metrics should describe the full synchronized raw part,
             # not BB-dependent cropped data used by Kalman internals.
@@ -753,11 +759,12 @@ def main():
             bs_ea, _kgr_kuan_ea_local, time_kuan_ea = process_kuantisasi(kal_ea, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
             bs_eb, _kgr_kuan_eb_local, time_kuan_eb = process_kuantisasi(kal_eb, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
 
-            # KGR Kuantisasi kumulatif = panjang bitstream / (t_chanprob + t_kalman + t_kuantisasi)
-            kgr_kuan_a = calculate_cumulative_kgr(len(bs_a), CHANPROB_TIME_SECONDS, time_kal_a, time_kuan_a)
-            kgr_kuan_b = calculate_cumulative_kgr(len(bs_b), CHANPROB_TIME_SECONDS, time_kal_b, time_kuan_b)
-            kgr_kuan_ea = calculate_cumulative_kgr(len(bs_ea), CHANPROB_TIME_SECONDS, time_kal_ea, time_kuan_ea)
-            kgr_kuan_eb = calculate_cumulative_kgr(len(bs_eb), CHANPROB_TIME_SECONDS, time_kal_eb, time_kuan_eb)
+            # KGR Kuantisasi kumulatif = panjang bitstream / (t_chanprob_scaled + t_kalman + t_kuantisasi)
+            # Menggunakan chanprob_time_scaled agar KGR proporsional terhadap data yang benar-benar diproses per BB
+            kgr_kuan_a = calculate_cumulative_kgr(len(bs_a), chanprob_time_scaled, time_kal_a, time_kuan_a)
+            kgr_kuan_b = calculate_cumulative_kgr(len(bs_b), chanprob_time_scaled, time_kal_b, time_kuan_b)
+            kgr_kuan_ea = calculate_cumulative_kgr(len(bs_ea), chanprob_time_scaled, time_kal_ea, time_kuan_ea)
+            kgr_kuan_eb = calculate_cumulative_kgr(len(bs_eb), chanprob_time_scaled, time_kal_eb, time_kuan_eb)
             
             save_data_list(excel_kuan_dir, f"{v_name}_kuantisasi_alice.xlsx", [bs_a], "bitstream")
             save_data_list(excel_kuan_dir, f"{v_name}_kuantisasi_bob.xlsx", [bs_b], "bitstream")
@@ -784,14 +791,14 @@ def main():
 
                 kgr_bch_ab = calculate_cumulative_kgr(
                     len(b_alice),
-                    CHANPROB_TIME_SECONDS,
+                    chanprob_time_scaled,
                     time_kal_a,
                     time_kuan_a,
                     stats_ab["time_bch"],
                 )
                 kgr_bch_eve = calculate_cumulative_kgr(
                     len(b_ea),
-                    CHANPROB_TIME_SECONDS,
+                    chanprob_time_scaled,
                     time_kal_ea,
                     time_kuan_ea,
                     stats_eve["time_bch"],
