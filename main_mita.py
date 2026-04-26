@@ -710,8 +710,8 @@ def build_endtoend_sheet(wb, records):
 # =====================================================================
 def main():
     print("=== FULL SECRET KEY GENERATION (SKG) AUTOMATION ===")
-    base_data = "data"
-    output_base = "Output"
+    base_data = "data_mita"
+    output_base = "Output_mita"
     
     # === Inisialisasi list untuk rekap global semua skenario ===
     global_kalman_records = []
