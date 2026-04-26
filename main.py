@@ -84,6 +84,27 @@ def calculate_cumulative_kgr(total_bits, *time_parts):
         return 0.0
     return float(total_bits) / total_time
 
+def calculate_local_kgr(total_bits, elapsed):
+    """Hitung KGR lokal: total_bits / waktu pada stage tersebut."""
+    try:
+        elapsed = float(elapsed)
+    except (TypeError, ValueError):
+        return 0.0
+    if elapsed <= 0:
+        return 0.0
+    return float(total_bits) / elapsed
+
+def calculate_kdr_from_matched_bits(matched_bits, compared_bits):
+    """Hitung KDR final (%) dari mismatch bits terhadap total compared bits."""
+    try:
+        matched_bits = float(matched_bits)
+        compared_bits = float(compared_bits)
+    except (TypeError, ValueError):
+        return 0.0
+    if compared_bits <= 0:
+        return 0.0
+    mismatch = max(0.0, compared_bits - matched_bits)
+    return (mismatch / compared_bits) * 100.0
 # =====================================================================
 # EXCEL FORMATTING FUNCTIONS
 # =====================================================================
@@ -204,25 +225,30 @@ def build_kuantisasi_excel(output_path, records):
         ws.cell(row=start_row+1, column=4, value=r['kdr_eve'])
         ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
         
-        # KGR
-        ws.cell(row=start_row+2, column=1, value="KGR (bit/s)")
-        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]):
+        # KGR Lokal
+        ws.cell(row=start_row+2, column=1, value="KGR Lokal (bit/s)")
+        for idx, val in enumerate([r['kgr_local_alice'], r['kgr_local_bob'], r['kgr_local_evealice'], r['kgr_local_evebob']]):
             ws.cell(row=start_row+2, column=2+idx, value=val)
 
-        # Total bit yang dihasilkan
-        ws.cell(row=start_row+3, column=1, value="Total Bit Dihasilkan")
-        for idx, val in enumerate([r['total_bits_alice'], r['total_bits_bob'], r['total_bits_ea'], r['total_bits_eb']]):
+        # KGR Kumulatif
+        ws.cell(row=start_row+3, column=1, value="KGR Kumulatif (bit/s)")
+        for idx, val in enumerate([r['kgr_cum_alice'], r['kgr_cum_bob'], r['kgr_cum_evealice'], r['kgr_cum_evebob']]):
             ws.cell(row=start_row+3, column=2+idx, value=val)
-            
-        # Waktu Komputasi
-        ws.cell(row=start_row+4, column=1, value="Waktu komputasi (s)")
-        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]):
+
+        # Total bit yang dihasilkan
+        ws.cell(row=start_row+4, column=1, value="Total Bit Dihasilkan")
+        for idx, val in enumerate([r['total_bits_alice'], r['total_bits_bob'], r['total_bits_ea'], r['total_bits_eb']]):
             ws.cell(row=start_row+4, column=2+idx, value=val)
             
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+4, min_col=1, max_col=5):
+        # Waktu Komputasi
+        ws.cell(row=start_row+5, column=1, value="Waktu komputasi (s)")
+        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]):
+            ws.cell(row=start_row+5, column=2+idx, value=val)
+            
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+5, min_col=1, max_col=5):
             for cell in row: cell.alignment = center_align
 
-        current_row = start_row + 8
+        current_row = start_row + 9
         
     for col in range(1, 6):
         ws.column_dimensions[get_column_letter(col)].width = 20
@@ -250,39 +276,42 @@ def build_bch_excel(output_path, records):
         ws.cell(row=start_row+1, column=2, value=r['kdr_after_ab'])
         ws.cell(row=start_row+1, column=3, value=r['kdr_after_eve'])
         
-        ws.cell(row=start_row+2, column=1, value="KGR BCH Kumulatif (bit/s)")
-        ws.cell(row=start_row+2, column=2, value=r['kgr_bch_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['kgr_bch_eve'])
+        ws.cell(row=start_row+2, column=1, value="KGR BCH Lokal (bit/s)")
+        ws.cell(row=start_row+2, column=2, value=r['kgr_bch_ab_local'])
+        ws.cell(row=start_row+2, column=3, value=r['kgr_bch_eve_local'])
 
-        ws.cell(row=start_row+3, column=1, value="Parity Bits Dikirim")
-        ws.cell(row=start_row+3, column=2, value=r['parity_bits_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['parity_bits_eve'])
+        ws.cell(row=start_row+3, column=1, value="KGR BCH Kumulatif (bit/s)")
+        ws.cell(row=start_row+3, column=2, value=r['kgr_bch_ab'])
+        ws.cell(row=start_row+3, column=3, value=r['kgr_bch_eve'])
 
-        ws.cell(row=start_row+4, column=1, value="Total Bit (A/B | E-A/E-B)")
-        ws.cell(row=start_row+4, column=2, value=f"{r['total_bits_alice']}/{r['total_bits_bob']}")
-        ws.cell(row=start_row+4, column=3, value=f"{r['total_bits_ea']}/{r['total_bits_eb']}")
+        ws.cell(row=start_row+4, column=1, value="Parity Bits Dikirim")
+        ws.cell(row=start_row+4, column=2, value=r['parity_bits_ab'])
+        ws.cell(row=start_row+4, column=3, value=r['parity_bits_eve'])
 
-        ws.cell(row=start_row+5, column=1, value="Error Bit Sebelum")
-        ws.cell(row=start_row+5, column=2, value=r['error_bits_ab_before'])
-        ws.cell(row=start_row+5, column=3, value=r['error_bits_eve_before'])
+        ws.cell(row=start_row+5, column=1, value="Total Bit (A/B | E-A/E-B)")
+        ws.cell(row=start_row+5, column=2, value=f"{r['total_bits_alice']}/{r['total_bits_bob']}")
+        ws.cell(row=start_row+5, column=3, value=f"{r['total_bits_ea']}/{r['total_bits_eb']}")
 
-        ws.cell(row=start_row+6, column=1, value="Error Bit Setelah")
-        ws.cell(row=start_row+6, column=2, value=r['error_bits_ab_after'])
-        ws.cell(row=start_row+6, column=3, value=r['error_bits_eve_after'])
+        ws.cell(row=start_row+6, column=1, value="Error Bit Sebelum")
+        ws.cell(row=start_row+6, column=2, value=r['error_bits_ab_before'])
+        ws.cell(row=start_row+6, column=3, value=r['error_bits_eve_before'])
 
-        ws.cell(row=start_row+7, column=1, value="Bit Terkoreksi/Disamakan")
-        ws.cell(row=start_row+7, column=2, value=r['corrected_bits_ab'])
-        ws.cell(row=start_row+7, column=3, value=r['corrected_bits_eve'])
+        ws.cell(row=start_row+7, column=1, value="Error Bit Setelah")
+        ws.cell(row=start_row+7, column=2, value=r['error_bits_ab_after'])
+        ws.cell(row=start_row+7, column=3, value=r['error_bits_eve_after'])
 
-        ws.cell(row=start_row+8, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+8, column=2, value=r['time_bch_ab'])
-        ws.cell(row=start_row+8, column=3, value=r['time_bch_eve'])
+        ws.cell(row=start_row+8, column=1, value="Bit Terkoreksi/Disamakan")
+        ws.cell(row=start_row+8, column=2, value=r['corrected_bits_ab'])
+        ws.cell(row=start_row+8, column=3, value=r['corrected_bits_eve'])
+
+        ws.cell(row=start_row+9, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row+9, column=2, value=r['time_bch_ab'])
+        ws.cell(row=start_row+9, column=3, value=r['time_bch_eve'])
         
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+8, min_col=1, max_col=3):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+9, min_col=1, max_col=3):
             for cell in row: cell.alignment = center_align
             
-        current_row = start_row + 11
-        
+        current_row = start_row + 12
     for col in range(1, 4):
         ws.column_dimensions[get_column_letter(col)].width = 20
     wb.save(output_path)
@@ -319,9 +348,6 @@ def build_hash_excel(output_path, records):
         ws.cell(row=start_row+3, column=2, value=r['total_key_bits_alice'])
         ws.cell(row=start_row+3, column=3, value=r['total_key_bits_bob'])
         ws.cell(row=start_row+3, column=4, value=r['total_key_bits_ea'])
-        ws.cell(row=start_row+3, column=5, value=r['total_key_bits_eb'])
-
-        ws.cell(row=start_row+4, column=1, value="Total Bit AES Match")
         ws.cell(row=start_row+4, column=2, value=r['matched_key_bits_ab'])
         ws.merge_cells(start_row=start_row+4, start_column=2, end_row=start_row+4, end_column=3)
         ws.cell(row=start_row+4, column=4, value=r['matched_key_bits_eve'])
@@ -384,11 +410,11 @@ def build_nist_excel(output_path, records):
         ws.cell(row=start_row+5, column=2, value=r['time_nist_ab'])
         ws.cell(row=start_row+5, column=3, value=r['time_nist_eve'])
         
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+5, min_col=1, max_col=3):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+9, min_col=1, max_col=3):
             for cell in row:
                 cell.alignment = center_align
         current_row = start_row + 8
-        
+        current_row = start_row + 12
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
     wb.save(output_path)
 
@@ -473,19 +499,22 @@ def build_kuantisasi_sheet(wb, records):
         ws.cell(row=start_row+1, column=4, value=r['kdr_eve'])
         ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
         
-        ws.cell(row=start_row+2, column=1, value="KGR (bit/s)")
-        for idx, val in enumerate([r['kgr_alice'], r['kgr_bob'], r['kgr_evealice'], r['kgr_evebob']]): ws.cell(row=start_row+2, column=2+idx, value=val)
+        ws.cell(row=start_row+2, column=1, value="KGR Lokal (bit/s)")
+        for idx, val in enumerate([r['kgr_local_alice'], r['kgr_local_bob'], r['kgr_local_evealice'], r['kgr_local_evebob']]): ws.cell(row=start_row+2, column=2+idx, value=val)
 
-        ws.cell(row=start_row+3, column=1, value="Total Bit Dihasilkan")
-        for idx, val in enumerate([r['total_bits_alice'], r['total_bits_bob'], r['total_bits_ea'], r['total_bits_eb']]): ws.cell(row=start_row+3, column=2+idx, value=val)
+        ws.cell(row=start_row+3, column=1, value="KGR Kumulatif (bit/s)")
+        for idx, val in enumerate([r['kgr_cum_alice'], r['kgr_cum_bob'], r['kgr_cum_evealice'], r['kgr_cum_evebob']]): ws.cell(row=start_row+3, column=2+idx, value=val)
+
+        ws.cell(row=start_row+4, column=1, value="Total Bit Dihasilkan")
+        for idx, val in enumerate([r['total_bits_alice'], r['total_bits_bob'], r['total_bits_ea'], r['total_bits_eb']]): ws.cell(row=start_row+4, column=2+idx, value=val)
             
-        ws.cell(row=start_row+4, column=1, value="Waktu komputasi (s)")
-        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]): ws.cell(row=start_row+4, column=2+idx, value=val)
+        ws.cell(row=start_row+5, column=1, value="Waktu komputasi (s)")
+        for idx, val in enumerate([r['time_alice'], r['time_bob'], r['time_evealice'], r['time_evebob']]): ws.cell(row=start_row+5, column=2+idx, value=val)
             
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+4, min_col=1, max_col=5):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+5, min_col=1, max_col=5):
             for cell in row: cell.alignment = center_align
 
-        current_row = start_row + 7
+        current_row = start_row + 8
         
     for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 20
 
@@ -507,38 +536,42 @@ def build_bch_sheet(wb, records):
         ws.cell(row=start_row+1, column=2, value=r['kdr_after_ab'])
         ws.cell(row=start_row+1, column=3, value=r['kdr_after_eve'])
         
-        ws.cell(row=start_row+2, column=1, value="KGR BCH Kumulatif (bit/s)")
-        ws.cell(row=start_row+2, column=2, value=r['kgr_bch_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['kgr_bch_eve'])
+        ws.cell(row=start_row+2, column=1, value="KGR BCH Lokal (bit/s)")
+        ws.cell(row=start_row+2, column=2, value=r['kgr_bch_ab_local'])
+        ws.cell(row=start_row+2, column=3, value=r['kgr_bch_eve_local'])
 
-        ws.cell(row=start_row+3, column=1, value="Parity Bits Dikirim")
-        ws.cell(row=start_row+3, column=2, value=r['parity_bits_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['parity_bits_eve'])
+        ws.cell(row=start_row+3, column=1, value="KGR BCH Kumulatif (bit/s)")
+        ws.cell(row=start_row+3, column=2, value=r['kgr_bch_ab'])
+        ws.cell(row=start_row+3, column=3, value=r['kgr_bch_eve'])
 
-        ws.cell(row=start_row+4, column=1, value="Total Bit (A/B | E-A/E-B)")
-        ws.cell(row=start_row+4, column=2, value=f"{r['total_bits_alice']}/{r['total_bits_bob']}")
-        ws.cell(row=start_row+4, column=3, value=f"{r['total_bits_ea']}/{r['total_bits_eb']}")
+        ws.cell(row=start_row+4, column=1, value="Parity Bits Dikirim")
+        ws.cell(row=start_row+4, column=2, value=r['parity_bits_ab'])
+        ws.cell(row=start_row+4, column=3, value=r['parity_bits_eve'])
 
-        ws.cell(row=start_row+5, column=1, value="Error Bit Sebelum")
-        ws.cell(row=start_row+5, column=2, value=r['error_bits_ab_before'])
-        ws.cell(row=start_row+5, column=3, value=r['error_bits_eve_before'])
+        ws.cell(row=start_row+5, column=1, value="Total Bit (A/B | E-A/E-B)")
+        ws.cell(row=start_row+5, column=2, value=f"{r['total_bits_alice']}/{r['total_bits_bob']}")
+        ws.cell(row=start_row+5, column=3, value=f"{r['total_bits_ea']}/{r['total_bits_eb']}")
 
-        ws.cell(row=start_row+6, column=1, value="Error Bit Setelah")
-        ws.cell(row=start_row+6, column=2, value=r['error_bits_ab_after'])
-        ws.cell(row=start_row+6, column=3, value=r['error_bits_eve_after'])
+        ws.cell(row=start_row+6, column=1, value="Error Bit Sebelum")
+        ws.cell(row=start_row+6, column=2, value=r['error_bits_ab_before'])
+        ws.cell(row=start_row+6, column=3, value=r['error_bits_eve_before'])
 
-        ws.cell(row=start_row+7, column=1, value="Bit Terkoreksi/Disamakan")
-        ws.cell(row=start_row+7, column=2, value=r['corrected_bits_ab'])
-        ws.cell(row=start_row+7, column=3, value=r['corrected_bits_eve'])
+        ws.cell(row=start_row+7, column=1, value="Error Bit Setelah")
+        ws.cell(row=start_row+7, column=2, value=r['error_bits_ab_after'])
+        ws.cell(row=start_row+7, column=3, value=r['error_bits_eve_after'])
 
-        ws.cell(row=start_row+8, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+8, column=2, value=r['time_bch_ab'])
-        ws.cell(row=start_row+8, column=3, value=r['time_bch_eve'])
+        ws.cell(row=start_row+8, column=1, value="Bit Terkoreksi/Disamakan")
+        ws.cell(row=start_row+8, column=2, value=r['corrected_bits_ab'])
+        ws.cell(row=start_row+8, column=3, value=r['corrected_bits_eve'])
+
+        ws.cell(row=start_row+9, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row+9, column=2, value=r['time_bch_ab'])
+        ws.cell(row=start_row+9, column=3, value=r['time_bch_eve'])
         
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+8, min_col=1, max_col=3):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+9, min_col=1, max_col=3):
             for cell in row: cell.alignment = center_align
             
-        current_row = start_row + 11
+        current_row = start_row + 12
         
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
 
@@ -638,6 +671,40 @@ def build_nist_sheet(wb, records):
         
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
 
+def build_endtoend_sheet(wb, records):
+    ws = wb.create_sheet(title="EndToEnd")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    headers = [
+        "Skenario", "Q", "R", "BB",
+        "KGR Kumulatif Akhir AB (bit/s)", "KGR Kumulatif Akhir Eve (bit/s)",
+        "KDR Kumulatif Akhir AB (%)", "KDR Kumulatif Akhir Eve (%)",
+        "t_total AB (s)", "t_total Eve (s)",
+    ]
+    for col_idx, val in enumerate(headers, start=1):
+        ws.cell(row=1, column=col_idx, value=val).font = header_font
+
+    for row_idx, r in enumerate(records, start=2):
+        ws.cell(row=row_idx, column=1, value=r['skenario'])
+        ws.cell(row=row_idx, column=2, value=r['q'])
+        ws.cell(row=row_idx, column=3, value=r['r'])
+        ws.cell(row=row_idx, column=4, value=r['bb'])
+        ws.cell(row=row_idx, column=5, value=r['kgr_final_ab'])
+        ws.cell(row=row_idx, column=6, value=r['kgr_final_eve'])
+        ws.cell(row=row_idx, column=7, value=r['kdr_final_ab'])
+        ws.cell(row=row_idx, column=8, value=r['kdr_final_eve'])
+        ws.cell(row=row_idx, column=9, value=r['t_total_ab'])
+        ws.cell(row=row_idx, column=10, value=r['t_total_eve'])
+
+    for row in ws.iter_rows(min_row=1, max_row=max(2, len(records) + 1), min_col=1, max_col=10):
+        for cell in row:
+            cell.alignment = center_align
+
+    widths = [10, 8, 8, 8, 30, 30, 28, 30, 14, 14]
+    for idx, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
+
 # =====================================================================
 # MAIN ENTRY POINT
 # =====================================================================
@@ -652,6 +719,7 @@ def main():
     global_bch_records = []
     global_hash_records = []
     global_nist_records = []
+    global_endtoend_records = []
     
     for skenario in SCENARIOS:
         print(f"\n>>>> Memproses Skenario {skenario} <<<<")
@@ -669,7 +737,6 @@ def main():
         if not (raw_alice and raw_bob and raw_eve_a and raw_eve_b):
             print(f"Melewati skenario {skenario} karena data file tidak lengkap di direktori.")
             continue
-            
         skenario_out_dir = os.path.join(output_base, f"skenario_{skenario}")
         excel_kalman_dir = os.path.join(skenario_out_dir, "data_excel_kalman")
         excel_kuan_dir = os.path.join(skenario_out_dir, "data_excel_kuantisasi")
@@ -748,10 +815,10 @@ def main():
             })
             
             # --- 3. Kuantisasi Multibit 10x Iterasi (Pindah ke module) ---
-            bs_a, _kgr_kuan_a_local, time_kuan_a = process_kuantisasi(kal_a, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
-            bs_b, _kgr_kuan_b_local, time_kuan_b = process_kuantisasi(kal_b, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
-            bs_ea, _kgr_kuan_ea_local, time_kuan_ea = process_kuantisasi(kal_ea, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
-            bs_eb, _kgr_kuan_eb_local, time_kuan_eb = process_kuantisasi(kal_eb, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
+            bs_a, kgr_kuan_a_local, time_kuan_a = process_kuantisasi(kal_a, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
+            bs_b, kgr_kuan_b_local, time_kuan_b = process_kuantisasi(kal_b, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
+            bs_ea, kgr_kuan_ea_local, time_kuan_ea = process_kuantisasi(kal_ea, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
+            bs_eb, kgr_kuan_eb_local, time_kuan_eb = process_kuantisasi(kal_eb, KUANTISASI_NUM_BITS, BENCHMARK_ITERATIONS)
 
             # KGR Kuantisasi kumulatif = panjang bitstream / (t_chanprob + t_kalman + t_kuantisasi)
             kgr_kuan_a = calculate_cumulative_kgr(len(bs_a), CHANPROB_TIME_SECONDS, time_kal_a, time_kuan_a)
@@ -771,7 +838,8 @@ def main():
                 "skenario": skenario, "q": q, "r": r, "bb": bb,
                 "kdr_ab": kdr_ab, "kdr_eve": kdr_eve,
                 "time_alice": time_kuan_a, "time_bob": time_kuan_b, "time_evealice": time_kuan_ea, "time_evebob": time_kuan_eb,
-                "kgr_alice": kgr_kuan_a, "kgr_bob": kgr_kuan_b, "kgr_evealice": kgr_kuan_ea, "kgr_evebob": kgr_kuan_eb,
+                "kgr_local_alice": kgr_kuan_a_local, "kgr_local_bob": kgr_kuan_b_local, "kgr_local_evealice": kgr_kuan_ea_local, "kgr_local_evebob": kgr_kuan_eb_local,
+                "kgr_cum_alice": kgr_kuan_a, "kgr_cum_bob": kgr_kuan_b, "kgr_cum_evealice": kgr_kuan_ea, "kgr_cum_evebob": kgr_kuan_eb,
                 "total_bits_alice": len(bs_a), "total_bits_bob": len(bs_b),
                 "total_bits_ea": len(bs_ea), "total_bits_eb": len(bs_eb)
             })
@@ -781,6 +849,9 @@ def main():
                 from bch_module import process_bch
                 b_alice, b_bob, stats_ab = process_bch(bs_a, bs_b, apply_correction=True)
                 b_ea, b_eb, stats_eve = process_bch(bs_ea, bs_eb, apply_correction=False)
+
+                kgr_bch_ab_local = calculate_local_kgr(len(b_alice), stats_ab["time_bch"])
+                kgr_bch_eve_local = calculate_local_kgr(len(b_ea), stats_eve["time_bch"])
 
                 kgr_bch_ab = calculate_cumulative_kgr(
                     len(b_alice),
@@ -805,6 +876,7 @@ def main():
                 bch_records.append({
                     "skenario": skenario, "q": q, "r": r, "bb": bb,
                     "kdr_after_ab": stats_ab["kdr_after"], "kdr_after_eve": stats_eve["kdr_after"],
+                    "kgr_bch_ab_local": kgr_bch_ab_local, "kgr_bch_eve_local": kgr_bch_eve_local,
                     "kgr_bch_ab": kgr_bch_ab, "kgr_bch_eve": kgr_bch_eve,
                     "parity_bits_ab": stats_ab["parity_bits_sent"], "parity_bits_eve": stats_eve["parity_bits_sent"],
                     "total_bits_alice": stats_ab["total_bits_alice"], "total_bits_bob": stats_ab["total_bits_bob"],
@@ -846,6 +918,69 @@ def main():
                         "final_key_ea": h_ea[0] if len(h_ea) > 0 else "N/A",
                         "final_key_eb": h_eb[0] if len(h_eb) > 0 else "N/A",
                         "time_hash_ab": time_hash_ab, "time_hash_eve": time_hash_eve
+                    })
+
+                    total_compared_bits_ab = min(
+                        hash_metrics_ab["total_key_bits_alice"],
+                        hash_metrics_ab["total_key_bits_bob"],
+                    )
+                    total_compared_bits_eve = min(
+                        hash_metrics_eve["total_key_bits_alice"],
+                        hash_metrics_eve["total_key_bits_bob"],
+                    )
+
+                    t_total_ab = (
+                        CHANPROB_TIME_SECONDS
+                        + float(time_kal_a)
+                        + float(time_kuan_a)
+                        + float(stats_ab["time_bch"])
+                        + float(time_hash_ab)
+                    )
+                    t_total_eve = (
+                        CHANPROB_TIME_SECONDS
+                        + float(time_kal_ea)
+                        + float(time_kuan_ea)
+                        + float(stats_eve["time_bch"])
+                        + float(time_hash_eve)
+                    )
+
+                    kgr_final_ab = calculate_cumulative_kgr(
+                        hash_metrics_ab["matched_key_bits"],
+                        CHANPROB_TIME_SECONDS,
+                        time_kal_a,
+                        time_kuan_a,
+                        stats_ab["time_bch"],
+                        time_hash_ab,
+                    )
+                    kgr_final_eve = calculate_cumulative_kgr(
+                        hash_metrics_eve["matched_key_bits"],
+                        CHANPROB_TIME_SECONDS,
+                        time_kal_ea,
+                        time_kuan_ea,
+                        stats_eve["time_bch"],
+                        time_hash_eve,
+                    )
+
+                    kdr_final_ab = calculate_kdr_from_matched_bits(
+                        hash_metrics_ab["matched_key_bits"],
+                        total_compared_bits_ab,
+                    )
+                    kdr_final_eve = calculate_kdr_from_matched_bits(
+                        hash_metrics_eve["matched_key_bits"],
+                        total_compared_bits_eve,
+                    )
+
+                    global_endtoend_records.append({
+                        "skenario": skenario,
+                        "q": q,
+                        "r": r,
+                        "bb": bb,
+                        "kgr_final_ab": kgr_final_ab,
+                        "kgr_final_eve": kgr_final_eve,
+                        "kdr_final_ab": kdr_final_ab,
+                        "kdr_final_eve": kdr_final_eve,
+                        "t_total_ab": t_total_ab,
+                        "t_total_eve": t_total_eve,
                     })
                     
                     # --- 6. Uji NIST ---
@@ -922,6 +1057,10 @@ def main():
     if global_nist_records:
         print("Menyusun sheet NIST...")
         build_nist_sheet(rekap_wb, global_nist_records)
+
+    if global_endtoend_records:
+        print("Menyusun sheet EndToEnd...")
+        build_endtoend_sheet(rekap_wb, global_endtoend_records)
         
     rekap_wb.save(rekap_excel_path)
     print(f"Selesai! File rekap global berhasil disimpan di: {rekap_excel_path}")
