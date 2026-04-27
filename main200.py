@@ -58,6 +58,25 @@ def read_rssi_csv(path):
                 continue
     return data
 
+def list_rssi_csv_part_paths(folder_path, filename_prefix):
+    part_files = []
+    if not os.path.isdir(folder_path):
+        print(f"Warning: Folder {folder_path} tidak ditemukan!")
+        return part_files
+
+    for filename in os.listdir(folder_path):
+        if not (filename.startswith(filename_prefix) and filename.endswith(".csv")):
+            continue
+        part_num = 0
+        if "_part" in filename:
+            try:
+                part_num = int(filename.rsplit("_part", 1)[1].split(".csv", 1)[0])
+            except Exception:
+                part_num = 0
+        part_files.append((part_num, os.path.join(folder_path, filename)))
+
+    return [filepath for _, filepath in sorted(part_files, key=lambda item: item[0])]
+
 def calculate_kdr(a, b):
     if not a or not b: return 0.0
     n = min(len(a), len(b))
@@ -454,8 +473,8 @@ def build_bch_sheet(wb, records):
     # ===============================================================
     def _base_skenario_label(val):
         txt = str(val)
-        if "(Part" in txt:
-            return txt.split(" (Part")[0].strip()
+        if " (" in txt:
+            return txt.split(" (", 1)[0].strip()
         return txt
 
     def _mean_numeric(values):
@@ -580,8 +599,8 @@ def build_hash_sheet(wb, records):
     # ===============================================================
     def _base_skenario_label(val):
         txt = str(val)
-        if "(Part" in txt:
-            return txt.split(" (Part")[0].strip()
+        if " (" in txt:
+            return txt.split(" (", 1)[0].strip()
         return txt
 
     def _mode_text(values):
@@ -693,8 +712,8 @@ def build_nist_sheet(wb, records):
     # ===============================================================
     def _base_skenario_label(val):
         txt = str(val)
-        if "(Part" in txt:
-            return txt.split(" (Part")[0].strip()
+        if " (" in txt:
+            return txt.split(" (", 1)[0].strip()
         return txt
 
     def _mean_numeric(values):
@@ -845,8 +864,8 @@ def build_kalman_sheet(wb, records):
     # =================================================================
     def _base_skenario_label(val):
         txt = str(val)
-        if "(Part" in txt:
-            return txt.split(" (Part")[0].strip()
+        if " (" in txt:
+            return txt.split(" (", 1)[0].strip()
         return txt
 
     def _mean_numeric(values):
@@ -966,8 +985,8 @@ def build_kuantisasi_sheet(wb, records):
     # =================================================================
     def _base_skenario_label(val):
         txt = str(val)
-        if "(Part" in txt:
-            return txt.split(" (Part")[0].strip()
+        if " (" in txt:
+            return txt.split(" (", 1)[0].strip()
         return txt
 
     def _mean_numeric(values):
@@ -1309,12 +1328,13 @@ def build_summary_kuantisasi_excel(output_path, all_records_by_scenario):
 def main():
     print("=== FULL SECRET KEY GENERATION (SKG) AUTOMATION ===")
     
-    # Sumber data utama tetap dari folder data, pemotongan dilakukan internal.
-    base_data = "data"
+    # Sumber data utama tetap dari folder data200, data sudah dipisah per part.
+    base_data = "data200"
     output_base = "Output200"
     
     all_kalman_records = {}
     all_kuan_records = {}
+    all_kuan_concat_records = {}
     all_bch_records = {}
     all_hash_records = {}
     all_nist_records = {}
@@ -1330,54 +1350,58 @@ def main():
         
         kalman_records = []
         kuan_records = []
+        concat_kuan_state = {}
+        concat_kuan_records = []
         bch_records = []
         hash_records = []
         nist_records = []
         all_kalman_records[skenario] = kalman_records
         all_kuan_records[skenario] = kuan_records
+        all_kuan_concat_records[skenario] = concat_kuan_records
         all_bch_records[skenario] = bch_records
         all_hash_records[skenario] = hash_records
         all_nist_records[skenario] = nist_records
         
-        path_alice = os.path.join(base_data, "alice", f"skenario{skenario}_mita_alice.csv")
-        path_bob   = os.path.join(base_data, "bob", f"skenario{skenario}_mita_bob.csv")
-        path_eve_a = os.path.join(base_data, "eve alice", f"skenario{skenario}_mita_evealice.csv")
-        path_eve_b = os.path.join(base_data, "eve bob", f"skenario{skenario}_mita_evebob.csv")
+        alice_dir = os.path.join(base_data, "alice")
+        bob_dir = os.path.join(base_data, "bob")
+        eve_a_dir = os.path.join(base_data, "eve alice")
+        eve_b_dir = os.path.join(base_data, "eve bob")
 
-        raw_alice_full = read_rssi_csv(path_alice)
-        raw_bob_full = read_rssi_csv(path_bob)
-        raw_eve_a_full = read_rssi_csv(path_eve_a)
-        raw_eve_b_full = read_rssi_csv(path_eve_b)
+        alice_parts = list_rssi_csv_part_paths(alice_dir, f"skenario{skenario}_mita_alice_part")
+        bob_parts = list_rssi_csv_part_paths(bob_dir, f"skenario{skenario}_mita_bob_part")
+        eve_a_parts = list_rssi_csv_part_paths(eve_a_dir, f"skenario{skenario}_mita_evealice_part")
+        eve_b_parts = list_rssi_csv_part_paths(eve_b_dir, f"skenario{skenario}_mita_evebob_part")
 
-        if not (raw_alice_full and raw_bob_full and raw_eve_a_full and raw_eve_b_full):
+        if not (alice_parts and bob_parts and eve_a_parts and eve_b_parts):
             print(f"Melewati skenario {skenario} karena data file tidak lengkap di direktori.")
             continue
 
-        total_len = min(len(raw_alice_full), len(raw_bob_full), len(raw_eve_a_full), len(raw_eve_b_full))
-        usable_len = (total_len // CHUNK_SIZE) * CHUNK_SIZE
-        remainder = total_len - usable_len
-        if usable_len == 0:
-            print(f"Melewati skenario {skenario}: panjang data < {CHUNK_SIZE}.")
-            continue
-        if remainder > 0:
-            print(f"Skenario {skenario}: sisa {remainder} data dibuang (chunk = {CHUNK_SIZE}).")
+        if not (len(alice_parts) == len(bob_parts) == len(eve_a_parts) == len(eve_b_parts)):
+            print(f"Warning: jumlah part tidak sama untuk skenario {skenario}; akan diproses sampai part paling sedikit.")
 
-        num_parts = usable_len // CHUNK_SIZE
-        for part in range(1, num_parts + 1):
-            start_idx = (part - 1) * CHUNK_SIZE
-            end_idx = start_idx + CHUNK_SIZE
-            raw_alice = raw_alice_full[start_idx:end_idx]
-            raw_bob = raw_bob_full[start_idx:end_idx]
-            raw_eve_a = raw_eve_a_full[start_idx:end_idx]
-            raw_eve_b = raw_eve_b_full[start_idx:end_idx]
+        num_parts = min(len(alice_parts), len(bob_parts), len(eve_a_parts), len(eve_b_parts))
+        for part_idx in range(num_parts):
+            path_alice = alice_parts[part_idx]
+            path_bob = bob_parts[part_idx]
+            path_eve_a = eve_a_parts[part_idx]
+            path_eve_b = eve_b_parts[part_idx]
 
-            print(f"  --- Memproses Part {part} ---")
+            raw_alice = read_rssi_csv(path_alice)
+            raw_bob = read_rssi_csv(path_bob)
+            raw_eve_a = read_rssi_csv(path_eve_a)
+            raw_eve_b = read_rssi_csv(path_eve_b)
+
+            part_name = os.path.splitext(os.path.basename(path_alice))[0]
+            part_num = part_idx + 1
+            print(f"  --- Memproses {part_name} (Part {part_num}) ---")
+
+            if not (raw_alice and raw_bob and raw_eve_a and raw_eve_b):
+                print(f"  [SKIP] Part {part_num} kosong atau tidak lengkap.")
+                continue
 
             for param in PARAM_VARIATIONS:
                 q, r, bb = param['q'], param['r'], param['bb']
-                
                 total_len = min(len(raw_alice), len(raw_bob), len(raw_eve_a), len(raw_eve_b))
-                cut_len = (total_len // bb) * bb
 
                 # Pre-processing metrics should describe the full synchronized raw part,
                 # not BB-dependent cropped data used by Kalman internals.
@@ -1407,7 +1431,7 @@ def main():
                 kal_eb, _kgr_kal_eb, time_kal_eb = process_kalman(raw_eve_b, q, r, bb, BENCHMARK_ITERATIONS)
                 
                 # Simpan Sinyal array ke excel (.xlsx) dengan akhiran part
-                v_name = f"Q{q}_R{r}_BB{bb}_part{part}"
+                v_name = f"Q{q}_R{r}_BB{bb}_{part_name}"
                 save_data_list(excel_kalman_dir, f"{v_name}_kalman_alice.xlsx", kal_a, "alice_kalman")
                 save_data_list(excel_kalman_dir, f"{v_name}_kalman_bob.xlsx", kal_b, "bob_kalman")
                 save_data_list(excel_kalman_dir, f"{v_name}_kalman_evealice.xlsx", kal_ea, "evealice_kalman")
@@ -1427,7 +1451,7 @@ def main():
                 kal_corr_eve = calc_corr(kal_ea, kal_eb)
                 
                 kalman_records.append({
-                    "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                    "skenario": f"{skenario} ({part_name})", "q": q, "r": r, "bb": bb,
                     "orig_max_alice": orig_max_alice, "orig_max_bob": orig_max_bob, "orig_max_evealice": orig_max_evea, "orig_max_evebob": orig_max_eveb,
                     "orig_min_alice": orig_min_alice, "orig_min_bob": orig_min_bob, "orig_min_evealice": orig_min_evea, "orig_min_evebob": orig_min_eveb,
                     "orig_corr_ab": orig_corr_ab, "orig_corr_eve": orig_corr_eve,
@@ -1457,13 +1481,41 @@ def main():
                 kdr_eve = calculate_kdr(bs_ea, bs_eb)
                 
                 kuan_records.append({
-                    "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                    "skenario": f"{skenario} ({part_name})", "q": q, "r": r, "bb": bb,
                     "kdr_ab": kdr_ab, "kdr_eve": kdr_eve,
                     "time_alice": time_kuan_a, "time_bob": time_kuan_b, "time_evealice": time_kuan_ea, "time_evebob": time_kuan_eb,
                     "kgr_alice": kgr_kuan_a, "kgr_bob": kgr_kuan_b, "kgr_evealice": kgr_kuan_ea, "kgr_evebob": kgr_kuan_eb,
                     "total_bits_alice": len(bs_a), "total_bits_bob": len(bs_b),
                     "total_bits_ea": len(bs_ea), "total_bits_eb": len(bs_eb)
                 })
+
+                concat_key = (q, r, bb)
+                concat_state = concat_kuan_state.setdefault(concat_key, {
+                    "alice_bits": [],
+                    "bob_bits": [],
+                    "evealice_bits": [],
+                    "evebob_bits": [],
+                    "time_kal_alice": 0.0,
+                    "time_kal_bob": 0.0,
+                    "time_kal_evealice": 0.0,
+                    "time_kal_evebob": 0.0,
+                    "time_kuan_alice": 0.0,
+                    "time_kuan_bob": 0.0,
+                    "time_kuan_evealice": 0.0,
+                    "time_kuan_evebob": 0.0,
+                })
+                concat_state["alice_bits"].append(bs_a)
+                concat_state["bob_bits"].append(bs_b)
+                concat_state["evealice_bits"].append(bs_ea)
+                concat_state["evebob_bits"].append(bs_eb)
+                concat_state["time_kal_alice"] += float(time_kal_a)
+                concat_state["time_kal_bob"] += float(time_kal_b)
+                concat_state["time_kal_evealice"] += float(time_kal_ea)
+                concat_state["time_kal_evebob"] += float(time_kal_eb)
+                concat_state["time_kuan_alice"] += float(time_kuan_a)
+                concat_state["time_kuan_bob"] += float(time_kuan_b)
+                concat_state["time_kuan_evealice"] += float(time_kuan_ea)
+                concat_state["time_kuan_evebob"] += float(time_kuan_eb)
 
                 # --- 4. BCH, Hash dan NIST Test (Simulasi modul) ---
                 try:
@@ -1479,7 +1531,7 @@ def main():
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_bch"), f"{v_name}_bch_bob.xlsx", b_bob, "bob_bch_bits")
 
                     bch_records.append({
-                        "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                        "skenario": f"{skenario} ({part_name})", "q": q, "r": r, "bb": bb,
                         "kdr_after_ab": stats_ab["kdr_after"], "kdr_after_eve": stats_eve["kdr_after"],
                         "kgr_bch_ab": kgr_bch_ab, "kgr_bch_eve": kgr_bch_eve,
                         "parity_bits_ab": stats_ab["parity_bits_sent"], "parity_bits_eve": stats_eve["parity_bits_sent"],
@@ -1503,7 +1555,7 @@ def main():
                         save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_evebob.xlsx", h_eb, "AES_keys")
 
                         hash_records.append({
-                            "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                            "skenario": f"{skenario} ({part_name})", "q": q, "r": r, "bb": bb,
                             "aes_count_ab": len(aes_ab), "aes_count_eve": len(aes_eve),
                             "keys_count_alice": hash_metrics_ab["keys_count_alice"], "keys_count_bob": hash_metrics_ab["keys_count_bob"],
                             "keys_count_ea": hash_metrics_eve["keys_count_alice"], "keys_count_eb": hash_metrics_eve["keys_count_bob"],
@@ -1529,7 +1581,7 @@ def main():
                             pdist_eve_str = ", ".join([f"{k}:{v}" for k, v in pdist_eve.items()])
 
                             nist_records.append({
-                                "skenario": f"{skenario} (Part {part})", "q": q, "r": r, "bb": bb,
+                                "skenario": f"{skenario} ({part_name})", "q": q, "r": r, "bb": bb,
                                 "passed_keys_ab": pass_ab, "passed_keys_eve": pass_eve,
                                 "pval_ab": pval_ab, "pval_eve": pval_eve,
                                 "pass_rate_ab": pass_rate_ab, "pass_rate_eve": pass_rate_eve,
@@ -1548,6 +1600,44 @@ def main():
         print(f" == Menyusun File Table Laporan untuk Skenario {skenario} ==")
         build_kalman_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kalman.xlsx"), kalman_records)
         build_kuantisasi_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kuantisasi.xlsx"), kuan_records)
+
+        concat_kuan_dir = os.path.join(skenario_out_dir, "data_excel_kuantisasi_concat")
+        os.makedirs(concat_kuan_dir, exist_ok=True)
+        for (q, r, bb), concat_state in concat_kuan_state.items():
+            bs_a_full = "".join(concat_state["alice_bits"])
+            bs_b_full = "".join(concat_state["bob_bits"])
+            bs_ea_full = "".join(concat_state["evealice_bits"])
+            bs_eb_full = "".join(concat_state["evebob_bits"])
+
+            final_v_name = f"Q{q}_R{r}_BB{bb}_concat"
+            save_data_list(concat_kuan_dir, f"{final_v_name}_kuantisasi_alice.xlsx", [bs_a_full], "bitstream")
+            save_data_list(concat_kuan_dir, f"{final_v_name}_kuantisasi_bob.xlsx", [bs_b_full], "bitstream")
+            save_data_list(concat_kuan_dir, f"{final_v_name}_kuantisasi_evealice.xlsx", [bs_ea_full], "bitstream")
+            save_data_list(concat_kuan_dir, f"{final_v_name}_kuantisasi_evebob.xlsx", [bs_eb_full], "bitstream")
+
+            concat_kuan_records.append({
+                "skenario": skenario,
+                "q": q,
+                "r": r,
+                "bb": bb,
+                "kdr_ab": calculate_kdr(bs_a_full, bs_b_full),
+                "kdr_eve": calculate_kdr(bs_ea_full, bs_eb_full),
+                "time_alice": concat_state["time_kuan_alice"],
+                "time_bob": concat_state["time_kuan_bob"],
+                "time_evealice": concat_state["time_kuan_evealice"],
+                "time_evebob": concat_state["time_kuan_evebob"],
+                "kgr_alice": calculate_cumulative_kgr(len(bs_a_full), CHANPROB_TIME_SECONDS, concat_state["time_kal_alice"], concat_state["time_kuan_alice"]),
+                "kgr_bob": calculate_cumulative_kgr(len(bs_b_full), CHANPROB_TIME_SECONDS, concat_state["time_kal_bob"], concat_state["time_kuan_bob"]),
+                "kgr_evealice": calculate_cumulative_kgr(len(bs_ea_full), CHANPROB_TIME_SECONDS, concat_state["time_kal_evealice"], concat_state["time_kuan_evealice"]),
+                "kgr_evebob": calculate_cumulative_kgr(len(bs_eb_full), CHANPROB_TIME_SECONDS, concat_state["time_kal_evebob"], concat_state["time_kuan_evebob"]),
+                "total_bits_alice": len(bs_a_full),
+                "total_bits_bob": len(bs_b_full),
+                "total_bits_ea": len(bs_ea_full),
+                "total_bits_eb": len(bs_eb_full)
+            })
+
+        if concat_kuan_records:
+            build_kuantisasi_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Kuantisasi_Concat.xlsx"), concat_kuan_records)
         if bch_records:
             build_bch_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_BCH.xlsx"), bch_records)
         if hash_records:
@@ -1562,6 +1652,7 @@ def main():
     print("\n=== Menyusun Rekap Keseluruhan ===")
     summary_kalman_path = os.path.join(output_base, "Rekap_Keseluruhan_Kalman.xlsx")
     summary_kuan_path = os.path.join(output_base, "Rekap_Keseluruhan_Kuantisasi.xlsx")
+    summary_kuan_concat_path = os.path.join(output_base, "Rekap_Keseluruhan_Kuantisasi_Concat.xlsx")
     summary_bch_path = os.path.join(output_base, "Rekap_Keseluruhan_BCH.xlsx")
     summary_hash_path = os.path.join(output_base, "Rekap_Keseluruhan_Hash.xlsx")
     summary_nist_path = os.path.join(output_base, "Rekap_Keseluruhan_NIST.xlsx")
@@ -1576,6 +1667,11 @@ def main():
         build_summary_kuantisasi_excel(summary_kuan_path, all_kuan_records)
     else:
         print("  [SKIP] Tidak ada data Kuantisasi untuk direkap.")
+
+    if any(all_kuan_concat_records.values()):
+        build_summary_kuantisasi_excel(summary_kuan_concat_path, all_kuan_concat_records)
+    else:
+        print("  [SKIP] Tidak ada data Kuantisasi concat untuk direkap.")
 
     print("\n==== MERANGKUM SELURUH SKENARIO KE DALAM SATU FILE EXCEL ====")
     rekap_excel_path = os.path.join(output_base, "Rekap_Evaluasi_SKG_Semua_Skenario.xlsx")
