@@ -26,14 +26,14 @@ CHANPROB_TIME_SECONDS = 120.0  # Hardcoded sementara sesuai arahan: waktu channe
 
 # Variasi Parameter Pengujian Skenario
 PARAM_VARIATIONS = [
-    {"q": 0.01, "r": 0.5, "bb": 1},
-    {"q": 0.01, "r": 0.5, "bb": 500},
-    {"q": 0.01, "r": 0.5, "bb": 200},
     {"q": 0.01, "r": 0.5, "bb": 100},
-    {"q": 0.5, "r": 0.01, "bb": 1},
-    {"q": 0.5, "r": 0.01, "bb": 500},
-    {"q": 0.5, "r": 0.01, "bb": 20},
+    {"q": 0.01, "r": 0.5, "bb": 200},
+    {"q": 0.01, "r": 0.5, "bb": 500},
+    {"q": 0.01, "r": 0.5, "bb": 1000},
     {"q": 0.5, "r": 0.01, "bb": 100},
+    {"q": 0.5, "r": 0.01, "bb": 200},
+    {"q": 0.5, "r": 0.01, "bb": 500},
+    {"q": 0.5, "r": 0.01, "bb": 1000},
 ]
 
 # Skenario iterasi 1 - 3
@@ -89,6 +89,22 @@ def save_data_list(output_dir, filename, data_list, header):
     os.makedirs(output_dir, exist_ok=True)
     df = pd.DataFrame({header: data_list})
     df.to_excel(os.path.join(output_dir, filename), index=False)
+
+def save_keys_to_txt(output_dir, bb, keys_ab, keys_eve, label="AES-128"):
+    """Simpan 1 kunci yang berhasil ke file .txt secara terpisah untuk Alice-Bob dan Eve."""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # File untuk Alice-Bob
+    filepath_ab = os.path.join(output_dir, f"BB{bb}_kunci_alice_bob.txt")
+    with open(filepath_ab, 'w', encoding='utf-8') as f:
+        key_ab = keys_ab[0] if keys_ab else "Tidak ada"
+        f.write(f"{key_ab}\n")
+        
+    # File untuk Eve
+    filepath_eve = os.path.join(output_dir, f"BB{bb}_kunci_eve.txt")
+    with open(filepath_eve, 'w', encoding='utf-8') as f:
+        key_eve = keys_eve[0] if keys_eve else "Tidak ada"
+        f.write(f"{key_eve}\n")
 
 def build_kalman_excel(output_path, records):
     wb = Workbook()
@@ -837,6 +853,17 @@ def main():
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_evealice.xlsx", h_ea, "AES_keys")
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_evebob.xlsx", h_eb, "AES_keys")
                     
+                    # Simpan kunci AES-128 yang berhasil dicocokkan (match) ke .txt
+                    if q == 0.01:
+                        txt_aes_dir = os.path.join(skenario_out_dir, "kunci_aes128")
+                        save_keys_to_txt(
+                            txt_aes_dir,
+                            bb,
+                            aes_ab,
+                            aes_eve,
+                            label="AES-128"
+                        )
+                    
                     hash_records.append({
                         "skenario": skenario, "q": q, "r": r, "bb": bb,
                         "aes_count_ab": len(aes_ab), "aes_count_eve": len(aes_eve),
@@ -872,6 +899,19 @@ def main():
                             "pval_dist_ab": pdist_ab_str, "pval_dist_eve": pdist_eve_str,
                             "time_nist_ab": time_nist_ab, "time_nist_eve": time_nist_eve
                         })
+                        
+                        # Simpan kunci yang lulus uji NIST ke .txt
+                        if q == 0.01:
+                            nist_keys_ab  = pass_ab  if isinstance(pass_ab, list)  else []
+                            nist_keys_eve = pass_eve if isinstance(pass_eve, list) else []
+                            txt_nist_dir = os.path.join(skenario_out_dir, "kunci_nist")
+                            save_keys_to_txt(
+                                txt_nist_dir,
+                                bb,
+                                nist_keys_ab,
+                                nist_keys_eve,
+                                label="NIST"
+                            )
                     except Exception as e:
                         print("NIST Modul Error:", e)
                         
