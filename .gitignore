@@ -66,6 +66,7 @@ Output100/
 Output200/
 Output_aul/
 Output_mita/
+Output_mita_copy/
 Hasil*.xlsx
 
 # Data source jika anda tidak ingin me-version control data input (hapus komentar jika data ingin di-ignore)
