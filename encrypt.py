@@ -1,5 +1,9 @@
 import json
 import os
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from Crypto.Random import get_random_bytes
@@ -45,3 +49,37 @@ with open(META_FILE, "w") as f:
 
 print(f"Kunci AES-128 yang digunakan: {key_hex}")
 print("Enkripsi berhasil:", OUTPUT_FILE)
+
+# ==========================================
+# Visualisasi Analogi Proses Enkripsi
+# ==========================================
+try:
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig.suptitle('Proses Enkripsi Gambar', fontsize=16)
+
+    # 1. Gambar Asli
+    img_asli = mpimg.imread(INPUT_FILE)
+    axes[0].imshow(img_asli)
+    axes[0].set_title('Gambar Asli (Tikus)')
+    axes[0].axis('off')
+
+    # 2. Kunci (Visualisasi Teks)
+    axes[1].text(0.5, 0.5, f"Kunci (AES-128):\n\n{key_hex}", 
+                 fontsize=12, ha='center', va='center', wrap=True, family='monospace')
+    axes[1].set_title('Kunci Enkripsi')
+    axes[1].axis('off')
+
+    # 3. Gambar Terenkripsi (Visualisasi byte acak)
+    byte_array = np.frombuffer(ciphertext, dtype=np.uint8)
+    side = int(math.ceil(math.sqrt(len(byte_array))))
+    padded_array = np.pad(byte_array, (0, side*side - len(byte_array)), mode='constant')
+    img_encrypted = padded_array.reshape((side, side))
+    axes[2].imshow(img_encrypted, cmap='gray')
+    axes[2].set_title('Gambar Terenkripsi (Ciphertext)')
+    axes[2].axis('off')
+
+    plt.tight_layout()
+    plt.savefig('analogi_enkripsi.png')
+    plt.show()
+except Exception as e:
+    print(f"Tidak dapat menampilkan plot visualisasi: {e}")

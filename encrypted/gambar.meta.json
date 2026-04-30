@@ -1,6 +1,6 @@
 {
     "algorithm": "AES-128-CBC",
     "key_id": "Output_aul/skenario_1/kunci_aes128/BB100_kunci_alice_bob.txt",
-    "iv": "020f6f502ac1ff30da4055235ff6d6c0",
+    "iv": "8289b478f09cf20305c749111dab3ad3",
     "original_name": "tikus.jpg"
 }

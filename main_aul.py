@@ -26,14 +26,14 @@ CHANPROB_TIME_SECONDS = 120.0  # Hardcoded sementara sesuai arahan: waktu channe
 
 # Variasi Parameter Pengujian Skenario
 PARAM_VARIATIONS = [
-    {"q": 0.01, "r": 0.5, "bb": 100},
-    {"q": 0.01, "r": 0.5, "bb": 200},
-    {"q": 0.01, "r": 0.5, "bb": 500},
-    {"q": 0.01, "r": 0.5, "bb": 1000},
-    {"q": 0.5, "r": 0.01, "bb": 100},
-    {"q": 0.5, "r": 0.01, "bb": 200},
-    {"q": 0.5, "r": 0.01, "bb": 500},
-    {"q": 0.5, "r": 0.01, "bb": 1000},
+    {"q": 0.01, "r": 0.5, "bb": 1},
+    {"q": 0.01, "r": 0.5, "bb": 2},
+    {"q": 0.01, "r": 0.5, "bb": 4},
+    {"q": 0.01, "r": 0.5, "bb": 10},
+    {"q": 0.5, "r": 0.01, "bb": 1},
+    {"q": 0.5, "r": 0.01, "bb": 2},
+    {"q": 0.5, "r": 0.01, "bb": 4},
+    {"q": 0.5, "r": 0.01, "bb": 10},
 ]
 
 # Skenario iterasi 1 - 3
@@ -301,66 +301,105 @@ def build_bch_excel(output_path, records):
         ws.column_dimensions[get_column_letter(col)].width = 20
     wb.save(output_path)
 def build_hash_excel(output_path, records):
+    """File Excel terpisah dengan 3 sheet: Universal Hash, SHA-1, AES-128."""
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Rekap Hash"
+    if 'Sheet' in wb.sheetnames:
+        wb.remove(wb['Sheet'])
+    _fill_univ_hash_sheet(wb.create_sheet("Universal Hash"), records)
+    _fill_sha1_sheet(wb.create_sheet("SHA-1"), records)
+    _fill_aes128_sheet(wb.create_sheet("AES-128"), records)
+    wb.save(output_path)
+
+
+def _fill_univ_hash_sheet(ws, records):
     header_font = Font(bold=True)
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
     current_row = 1
     for r in records:
         ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
         current_row += 2
-        start_row = current_row
-        
-        ws.cell(row=start_row, column=1, value="Parameter Hash").font = header_font
-        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
-        for idx, val in enumerate(cols):
-            ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="Jumlah Kunci Cocok (Match)")
-        ws.cell(row=start_row+1, column=2, value=r['aes_count_ab'])
-        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
-        ws.cell(row=start_row+1, column=4, value=r['aes_count_eve'])
-        ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
+        s = current_row
+        ws.cell(row=s, column=1, value="Parameter Universal Hash").font = header_font
+        for idx, v in enumerate(["Alice", "Bob", "Eve-Alice", "Eve-Bob"]):
+            ws.cell(row=s, column=2+idx, value=v).font = header_font
+        ws.cell(row=s+1, column=1, value="Jumlah Kandidat Key")
+        for idx, v in enumerate([r['keys_count_alice'], r['keys_count_bob'], r['keys_count_ea'], r['keys_count_eb']]):
+            ws.cell(row=s+1, column=2+idx, value=v)
+        ws.cell(row=s+2, column=1, value="Total Bit Key (128*jumlah)")
+        for idx, v in enumerate([r['total_key_bits_alice'], r['total_key_bits_bob'], r['total_key_bits_ea'], r['total_key_bits_eb']]):
+            ws.cell(row=s+2, column=2+idx, value=v)
+        ws.cell(row=s+3, column=1, value="Kunci Pertama (Hex)")
+        for idx, v in enumerate([r['final_key_alice'], r['final_key_bob'], r['final_key_ea'], r['final_key_eb']]):
+            ws.cell(row=s+3, column=2+idx, value=v)
+        ws.cell(row=s+4, column=1, value="Waktu Komputasi Universal Hash (s)")
+        ws.cell(row=s+4, column=2, value=r['time_univ_ab'])
+        ws.merge_cells(start_row=s+4, start_column=2, end_row=s+4, end_column=3)
+        ws.cell(row=s+4, column=4, value=r['time_univ_eve'])
+        ws.merge_cells(start_row=s+4, start_column=4, end_row=s+4, end_column=5)
+        for row in ws.iter_rows(min_row=s, max_row=s+4, min_col=1, max_col=5):
+            for cell in row: cell.alignment = center_align
+        current_row = s + 8
+    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 35
+    ws.column_dimensions['A'].width = 30
 
-        ws.cell(row=start_row+2, column=1, value="Jumlah Kandidat Key")
-        ws.cell(row=start_row+2, column=2, value=r['keys_count_alice'])
-        ws.cell(row=start_row+2, column=3, value=r['keys_count_bob'])
-        ws.cell(row=start_row+2, column=4, value=r['keys_count_ea'])
-        ws.cell(row=start_row+2, column=5, value=r['keys_count_eb'])
 
-        ws.cell(row=start_row+3, column=1, value="Total Bit Key (128*jumlah_key)")
-        ws.cell(row=start_row+3, column=2, value=r['total_key_bits_alice'])
-        ws.cell(row=start_row+3, column=3, value=r['total_key_bits_bob'])
-        ws.cell(row=start_row+3, column=4, value=r['total_key_bits_ea'])
-        ws.cell(row=start_row+3, column=5, value=r['total_key_bits_eb'])
+def _fill_sha1_sheet(ws, records):
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        s = current_row
+        ws.cell(row=s, column=1, value="Parameter SHA-1").font = header_font
+        for idx, v in enumerate(["Alice", "Bob", "Eve-Alice", "Eve-Bob"]):
+            ws.cell(row=s, column=2+idx, value=v).font = header_font
+        ws.cell(row=s+1, column=1, value="Jumlah SHA-1 Key")
+        for idx, v in enumerate([r['keys_count_alice'], r['keys_count_bob'], r['keys_count_ea'], r['keys_count_eb']]):
+            ws.cell(row=s+1, column=2+idx, value=v)
+        ws.cell(row=s+2, column=1, value="SHA-1 Pertama (Hex)")
+        for idx, v in enumerate([r['sha1_key_alice'], r['sha1_key_bob'], r['sha1_key_ea'], r['sha1_key_eb']]):
+            ws.cell(row=s+2, column=2+idx, value=v)
+        ws.cell(row=s+3, column=1, value="Waktu Komputasi SHA-1 (s)")
+        ws.cell(row=s+3, column=2, value=r['time_sha_ab'])
+        ws.merge_cells(start_row=s+3, start_column=2, end_row=s+3, end_column=3)
+        ws.cell(row=s+3, column=4, value=r['time_sha_eve'])
+        ws.merge_cells(start_row=s+3, start_column=4, end_row=s+3, end_column=5)
+        for row in ws.iter_rows(min_row=s, max_row=s+3, min_col=1, max_col=5):
+            for cell in row: cell.alignment = center_align
+        current_row = s + 7
+    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 35
+    ws.column_dimensions['A'].width = 28
 
-        ws.cell(row=start_row+4, column=1, value="Total Bit AES Match")
-        ws.cell(row=start_row+4, column=2, value=r['matched_key_bits_ab'])
-        ws.merge_cells(start_row=start_row+4, start_column=2, end_row=start_row+4, end_column=3)
-        ws.cell(row=start_row+4, column=4, value=r['matched_key_bits_eve'])
-        ws.merge_cells(start_row=start_row+4, start_column=4, end_row=start_row+4, end_column=5)
-        
-        ws.cell(row=start_row+5, column=1, value="Kunci Pertama (Hex)")
-        ws.cell(row=start_row+5, column=2, value=r['final_key_alice'])
-        ws.cell(row=start_row+5, column=3, value=r['final_key_bob'])
-        ws.cell(row=start_row+5, column=4, value=r['final_key_ea'])
-        ws.cell(row=start_row+5, column=5, value=r['final_key_eb'])
-        
-        ws.cell(row=start_row+6, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+6, column=2, value=r['time_hash_ab'])
-        ws.cell(row=start_row+6, column=3, value=r['time_hash_ab'])
-        ws.cell(row=start_row+6, column=4, value=r['time_hash_eve'])
-        ws.cell(row=start_row+6, column=5, value=r['time_hash_eve'])
-        
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+6, min_col=1, max_col=5):
-            for cell in row:
-                cell.alignment = center_align
-        current_row = start_row + 9
-        
-    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 38
-    ws.column_dimensions['A'].width = 25
-    wb.save(output_path)
+
+def _fill_aes128_sheet(ws, records):
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    current_row = 1
+    for r in records:
+        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+        current_row += 2
+        s = current_row
+        ws.cell(row=s, column=1, value="Parameter AES-128").font = header_font
+        for idx, v in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=s, column=2+idx, value=v).font = header_font
+        ws.cell(row=s+1, column=1, value="Jumlah Kunci Cocok (Match)")
+        ws.cell(row=s+1, column=2, value=r['aes_count_ab'])
+        ws.cell(row=s+1, column=3, value=r['aes_count_eve'])
+        ws.cell(row=s+2, column=1, value="Total Bit AES Match")
+        ws.cell(row=s+2, column=2, value=r['matched_key_bits_ab'])
+        ws.cell(row=s+2, column=3, value=r['matched_key_bits_eve'])
+        ws.cell(row=s+3, column=1, value="Kunci AES Pertama (Hex)")
+        ws.cell(row=s+3, column=2, value=r['final_key_alice'])
+        ws.cell(row=s+3, column=3, value=r['final_key_ea'])
+        ws.cell(row=s+4, column=1, value="Waktu Komputasi AES-128 (s)")
+        ws.cell(row=s+4, column=2, value=r['time_aes_ab'])
+        ws.cell(row=s+4, column=3, value=r['time_aes_eve'])
+        for row in ws.iter_rows(min_row=s, max_row=s+4, min_col=1, max_col=3):
+            for cell in row: cell.alignment = center_align
+        current_row = s + 8
+    for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 35
+    ws.column_dimensions['A'].width = 30
 
 def build_nist_excel(output_path, records):
     wb = Workbook()
@@ -378,30 +417,34 @@ def build_nist_excel(output_path, records):
         for idx, val in enumerate(["A & B", "E-A & E-B"]):
             ws.cell(row=start_row, column=2+idx, value=val).font = header_font
             
-        ws.cell(row=start_row+1, column=1, value="Jumlah Key Lulus")
-        ws.cell(row=start_row+1, column=2, value=r['passed_keys_ab'])
-        ws.cell(row=start_row+1, column=3, value=r['passed_keys_eve'])
-        
-        ws.cell(row=start_row+2, column=1, value="Rata-rata p-value (ApEn)")
-        ws.cell(row=start_row+2, column=2, value=r['pval_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['pval_eve'])
+        ws.cell(row=start_row+1, column=1, value="Metode Uji NIST SP 800-22")
+        ws.cell(row=start_row+1, column=2, value=r.get('nist_tests', ""))
+        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
 
-        ws.cell(row=start_row+3, column=1, value="Pass Rate (%)")
-        ws.cell(row=start_row+3, column=2, value=r['pass_rate_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['pass_rate_eve'])
+        ws.cell(row=start_row+2, column=1, value="Jumlah Key Lulus")
+        ws.cell(row=start_row+2, column=2, value=r['passed_keys_ab'])
+        ws.cell(row=start_row+2, column=3, value=r['passed_keys_eve'])
+        
+        ws.cell(row=start_row+3, column=1, value="Rata-rata p-value (ApEn)")
+        ws.cell(row=start_row+3, column=2, value=r['pval_ab'])
+        ws.cell(row=start_row+3, column=3, value=r['pval_eve'])
 
-        ws.cell(row=start_row+4, column=1, value="Distribusi p-value")
-        ws.cell(row=start_row+4, column=2, value=r['pval_dist_ab'])
-        ws.cell(row=start_row+4, column=3, value=r['pval_dist_eve'])
+        ws.cell(row=start_row+4, column=1, value="Pass Rate (%)")
+        ws.cell(row=start_row+4, column=2, value=r['pass_rate_ab'])
+        ws.cell(row=start_row+4, column=3, value=r['pass_rate_eve'])
+
+        ws.cell(row=start_row+5, column=1, value="Distribusi p-value")
+        ws.cell(row=start_row+5, column=2, value=r['pval_dist_ab'])
+        ws.cell(row=start_row+5, column=3, value=r['pval_dist_eve'])
         
-        ws.cell(row=start_row+5, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+5, column=2, value=r['time_nist_ab'])
-        ws.cell(row=start_row+5, column=3, value=r['time_nist_eve'])
+        ws.cell(row=start_row+6, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row+6, column=2, value=r['time_nist_ab'])
+        ws.cell(row=start_row+6, column=3, value=r['time_nist_eve'])
         
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+5, min_col=1, max_col=3):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+6, min_col=1, max_col=3):
             for cell in row:
                 cell.alignment = center_align
-        current_row = start_row + 8
+        current_row = start_row + 9
         
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
     wb.save(output_path)
@@ -557,61 +600,71 @@ def build_bch_sheet(wb, records):
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
 
 def build_hash_sheet(wb, records):
-    ws = wb.create_sheet(title="Hash_SHA_AES")
+    """Buat 3 sheet terpisah di workbook: Universal Hash, SHA-1, AES-128."""
+    _fill_univ_hash_sheet(wb.create_sheet(title="Universal Hash"), records)
+    _fill_sha1_sheet(wb.create_sheet(title="SHA-1"), records)
+    _fill_aes128_sheet(wb.create_sheet(title="AES-128"), records)
+
+
+def build_univ_hash_nist_sheet(wb, nist_univ_records):
+    """Sheet NIST SP 800-22 setelah Universal Hash (nilai p-value tertinggi)."""
+    ws = wb.create_sheet(title="NIST Universal Hash")
     header_font = Font(bold=True)
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
     current_row = 1
-    for r in records:
-        ws.cell(row=current_row, column=1, value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}").font = Font(bold=True, italic=True)
+
+    TEST_LABELS = [
+        "Frequency Test",
+        "Block Frequency Test",
+        "Cumulative Sums Test",
+        "Runs Test",
+        "Longest Run Test",
+        "Approx Entropy Test",
+    ]
+    TEST_KEYS = [
+        "Frequency", "Block Frequency", "Cumulative Sums",
+        "Runs", "Longest Run", "Approx Entropy",
+    ]
+
+    for r in nist_univ_records:
+        ws.cell(row=current_row, column=1,
+                value=f"Skenario {r['skenario']} - Q={r['q']}, R={r['r']}, BB={r['bb']}"
+                ).font = Font(bold=True, italic=True)
         current_row += 2
-        start_row = current_row
-        
-        ws.cell(row=start_row, column=1, value="Parameter Hash").font = header_font
-        cols = ["Alice", "Bob", "Eve-Alice", "Eve-Bob"]
-        for idx, val in enumerate(cols): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
-            
-        ws.cell(row=start_row+1, column=1, value="Jumlah Kunci Cocok (Match)")
-        ws.cell(row=start_row+1, column=2, value=r['aes_count_ab'])
-        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
-        ws.cell(row=start_row+1, column=4, value=r['aes_count_eve'])
-        ws.merge_cells(start_row=start_row+1, start_column=4, end_row=start_row+1, end_column=5)
+        s = current_row
 
-        ws.cell(row=start_row+2, column=1, value="Jumlah Kandidat Key")
-        ws.cell(row=start_row+2, column=2, value=r['keys_count_alice'])
-        ws.cell(row=start_row+2, column=3, value=r['keys_count_bob'])
-        ws.cell(row=start_row+2, column=4, value=r['keys_count_ea'])
-        ws.cell(row=start_row+2, column=5, value=r['keys_count_eb'])
+        ws.cell(row=s, column=1, value="Uji NIST SP 800-22 (Universal Hash)").font = header_font
+        for idx, lbl in enumerate(["A & B", "E-A & E-B"]):
+            ws.cell(row=s, column=2+idx, value=lbl).font = header_font
 
-        ws.cell(row=start_row+3, column=1, value="Total Bit Key (128*jumlah_key)")
-        ws.cell(row=start_row+3, column=2, value=r['total_key_bits_alice'])
-        ws.cell(row=start_row+3, column=3, value=r['total_key_bits_bob'])
-        ws.cell(row=start_row+3, column=4, value=r['total_key_bits_ea'])
-        ws.cell(row=start_row+3, column=5, value=r['total_key_bits_eb'])
+        for i, (label, key) in enumerate(zip(TEST_LABELS, TEST_KEYS)):
+            ws.cell(row=s+1+i, column=1, value=label)
+            ws.cell(row=s+1+i, column=2, value=r['nist_univ_ab'].get(key, 0.0))
+            ws.cell(row=s+1+i, column=3, value=r['nist_univ_eve'].get(key, 0.0))
 
-        ws.cell(row=start_row+4, column=1, value="Total Bit AES Match")
-        ws.cell(row=start_row+4, column=2, value=r['matched_key_bits_ab'])
-        ws.merge_cells(start_row=start_row+4, start_column=2, end_row=start_row+4, end_column=3)
-        ws.cell(row=start_row+4, column=4, value=r['matched_key_bits_eve'])
-        ws.merge_cells(start_row=start_row+4, start_column=4, end_row=start_row+4, end_column=5)
-        
-        ws.cell(row=start_row+5, column=1, value="Kunci Pertama (Hex)")
-        ws.cell(row=start_row+5, column=2, value=r['final_key_alice'])
-        ws.cell(row=start_row+5, column=3, value=r['final_key_bob'])
-        ws.cell(row=start_row+5, column=4, value=r['final_key_ea'])
-        ws.cell(row=start_row+5, column=5, value=r['final_key_eb'])
-        
-        ws.cell(row=start_row+6, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+6, column=2, value=r['time_hash_ab'])
-        ws.cell(row=start_row+6, column=3, value=r['time_hash_ab'])
-        ws.cell(row=start_row+6, column=4, value=r['time_hash_eve'])
-        ws.cell(row=start_row+6, column=5, value=r['time_hash_eve'])
-        
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+6, min_col=1, max_col=5):
+        row_best = s + 1 + len(TEST_LABELS)
+        ws.cell(row=row_best, column=1, value="P-value Tertinggi (dipakai)").font = header_font
+        ws.cell(row=row_best, column=2, value=r['best_pval_ab'])
+        ws.cell(row=row_best, column=3, value=r['best_pval_eve'])
+
+        ws.cell(row=row_best+1, column=1, value="Jumlah Key Lulus (p >= 0.01)")
+        ws.cell(row=row_best+1, column=2, value=r['passed_univ_ab'])
+        ws.cell(row=row_best+1, column=3, value=r['passed_univ_eve'])
+
+        ws.cell(row=row_best+2, column=1, value="Pass Rate (%)")
+        ws.cell(row=row_best+2, column=2, value=r['pass_rate_univ_ab'])
+        ws.cell(row=row_best+2, column=3, value=r['pass_rate_univ_eve'])
+
+        ws.cell(row=row_best+3, column=1, value="Waktu Komputasi NIST (s)")
+        ws.cell(row=row_best+3, column=2, value=r['time_nist_univ_ab'])
+        ws.cell(row=row_best+3, column=3, value=r['time_nist_univ_eve'])
+
+        for row in ws.iter_rows(min_row=s, max_row=row_best+3, min_col=1, max_col=3):
             for cell in row: cell.alignment = center_align
-        current_row = start_row + 9
-        
-    for col in range(1, 6): ws.column_dimensions[get_column_letter(col)].width = 38
-    ws.column_dimensions['A'].width = 25
+        current_row = row_best + 7
+
+    for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 28
+    ws.column_dimensions['A'].width = 32
 
 def build_nist_sheet(wb, records):
     ws = wb.create_sheet(title="NIST")
@@ -626,31 +679,107 @@ def build_nist_sheet(wb, records):
         ws.cell(row=start_row, column=1, value="Parameter NIST").font = header_font
         for idx, val in enumerate(["A & B", "E-A & E-B"]): ws.cell(row=start_row, column=2+idx, value=val).font = header_font
             
-        ws.cell(row=start_row+1, column=1, value="Jumlah Key Lulus")
-        ws.cell(row=start_row+1, column=2, value=r['passed_keys_ab'])
-        ws.cell(row=start_row+1, column=3, value=r['passed_keys_eve'])
-        
-        ws.cell(row=start_row+2, column=1, value="Rata-rata p-value (ApEn)")
-        ws.cell(row=start_row+2, column=2, value=r['pval_ab'])
-        ws.cell(row=start_row+2, column=3, value=r['pval_eve'])
+        ws.cell(row=start_row+1, column=1, value="Metode Uji NIST SP 800-22")
+        ws.cell(row=start_row+1, column=2, value=r.get('nist_tests', ""))
+        ws.merge_cells(start_row=start_row+1, start_column=2, end_row=start_row+1, end_column=3)
 
-        ws.cell(row=start_row+3, column=1, value="Pass Rate (%)")
-        ws.cell(row=start_row+3, column=2, value=r['pass_rate_ab'])
-        ws.cell(row=start_row+3, column=3, value=r['pass_rate_eve'])
+        ws.cell(row=start_row+2, column=1, value="Jumlah Key Lulus")
+        ws.cell(row=start_row+2, column=2, value=r['passed_keys_ab'])
+        ws.cell(row=start_row+2, column=3, value=r['passed_keys_eve'])
+        
+        ws.cell(row=start_row+3, column=1, value="Rata-rata p-value (ApEn)")
+        ws.cell(row=start_row+3, column=2, value=r['pval_ab'])
+        ws.cell(row=start_row+3, column=3, value=r['pval_eve'])
 
-        ws.cell(row=start_row+4, column=1, value="Distribusi p-value")
-        ws.cell(row=start_row+4, column=2, value=r['pval_dist_ab'])
-        ws.cell(row=start_row+4, column=3, value=r['pval_dist_eve'])
+        ws.cell(row=start_row+4, column=1, value="Pass Rate (%)")
+        ws.cell(row=start_row+4, column=2, value=r['pass_rate_ab'])
+        ws.cell(row=start_row+4, column=3, value=r['pass_rate_eve'])
+
+        ws.cell(row=start_row+5, column=1, value="Distribusi p-value")
+        ws.cell(row=start_row+5, column=2, value=r['pval_dist_ab'])
+        ws.cell(row=start_row+5, column=3, value=r['pval_dist_eve'])
         
-        ws.cell(row=start_row+5, column=1, value="Waktu Komputasi (s)")
-        ws.cell(row=start_row+5, column=2, value=r['time_nist_ab'])
-        ws.cell(row=start_row+5, column=3, value=r['time_nist_eve'])
+        ws.cell(row=start_row+6, column=1, value="Waktu Komputasi (s)")
+        ws.cell(row=start_row+6, column=2, value=r['time_nist_ab'])
+        ws.cell(row=start_row+6, column=3, value=r['time_nist_eve'])
         
-        for row in ws.iter_rows(min_row=start_row, max_row=start_row+5, min_col=1, max_col=3):
+        for row in ws.iter_rows(min_row=start_row, max_row=start_row+6, min_col=1, max_col=3):
             for cell in row: cell.alignment = center_align
-        current_row = start_row + 8
+        current_row = start_row + 9
         
     for col in range(1, 4): ws.column_dimensions[get_column_letter(col)].width = 25
+
+def build_all_proses_sheet(wb, kalman_records, kuan_records, bch_records, hash_records, nist_records, nist_univ_records=None):
+    ws = wb.create_sheet(title="Rekap Semua Proses")
+    header_font = Font(bold=True)
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    
+    headers = [
+        "Skenario", "Q", "R", "BB",
+        "Korelasi A&B", "Korelasi Eve",
+        "KDR Kuantisasi A&B (%)", "KDR Kuantisasi Eve (%)", 
+        "KGR Kuantisasi A (bit/s)", "KGR Kuantisasi E (bit/s)",
+        "KDR Setelah BCH A&B (%)", "KDR Setelah BCH Eve (%)", 
+        "KGR BCH A&B (bit/s)", "KGR BCH Eve (bit/s)",
+        "Kunci AES Match A&B", "Kunci AES Match Eve",
+        "NIST Pass Rate A&B (%)", "NIST Pass Rate Eve (%)", 
+        "P-Value NIST A&B", "P-Value NIST Eve",
+        "Waktu Total A&B (s)", "Waktu Total Eve (s)"
+    ]
+    
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.alignment = center_align
+
+    # Asumsi semua list memiliki record yang terurut secara paralel
+    max_len = max(len(kalman_records), len(kuan_records), len(bch_records), len(hash_records), len(nist_records))
+    
+    for i in range(max_len):
+        r_kalman = kalman_records[i] if i < len(kalman_records) else {}
+        r_kuan = kuan_records[i] if i < len(kuan_records) else {}
+        r_bch = bch_records[i] if i < len(bch_records) else {}
+        r_hash = hash_records[i] if i < len(hash_records) else {}
+        r_nist = nist_records[i] if i < len(nist_records) else {}
+        
+        # Ambil identitas parameter dari record yang tersedia
+        src = r_kalman or r_kuan or r_bch or r_hash or r_nist
+        skenario = src.get('skenario', "")
+        q = src.get('q', "")
+        r_val = src.get('r', "")
+        bb = src.get('bb', "")
+        
+        time_ab = (r_kalman.get('time_alice', 0) + r_kalman.get('time_bob', 0) + 
+                   r_kuan.get('time_alice', 0) + r_kuan.get('time_bob', 0) + 
+                   r_bch.get('time_bch_ab', 0) + 
+                   r_hash.get('time_hash_ab', 0) + 
+                   r_nist.get('time_nist_ab', 0))
+                   
+        time_eve = (r_kalman.get('time_evealice', 0) + r_kalman.get('time_evebob', 0) + 
+                    r_kuan.get('time_evealice', 0) + r_kuan.get('time_evebob', 0) + 
+                    r_bch.get('time_bch_eve', 0) + 
+                    r_hash.get('time_hash_eve', 0) + 
+                    r_nist.get('time_nist_eve', 0))
+
+        row_data = [
+            skenario, q, r_val, bb,
+            r_kalman.get('kalman_corr_ab', ""), r_kalman.get('kalman_corr_eve', ""),
+            r_kuan.get('kdr_ab', ""), r_kuan.get('kdr_eve', ""),
+            r_kuan.get('kgr_alice', ""), r_kuan.get('kgr_evealice', ""),
+            r_bch.get('kdr_after_ab', ""), r_bch.get('kdr_after_eve', ""),
+            r_bch.get('kgr_bch_ab', ""), r_bch.get('kgr_bch_eve', ""),
+            r_hash.get('aes_count_ab', ""), r_hash.get('aes_count_eve', ""),
+            r_nist.get('pass_rate_ab', ""), r_nist.get('pass_rate_eve', ""),
+            r_nist.get('pval_ab', ""), r_nist.get('pval_eve', ""),
+            time_ab if time_ab > 0 else "", time_eve if time_eve > 0 else ""
+        ]
+        ws.append(row_data)
+        
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 22
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=col, max_col=col):
+            for cell in row:
+                cell.alignment = center_align
 
 # =====================================================================
 # MAIN ENTRY POINT
@@ -666,6 +795,7 @@ def main():
     global_bch_records = []
     global_hash_records = []
     global_nist_records = []
+    global_nist_univ_records = []
     
     for skenario in SCENARIOS:
         print(f"\n>>>> Memproses Skenario {skenario} <<<<")
@@ -695,6 +825,7 @@ def main():
         bch_records = []
         hash_records = []
         nist_records = []
+        nist_univ_records = []
         
         for param in PARAM_VARIATIONS:
             q, r, bb = param['q'], param['r'], param['bb']
@@ -841,12 +972,21 @@ def main():
                 # --- 5. Hash & SHA & AES ---
                 try: 
                     from hash_module import process_hash
+                    from nist_module import process_nist
                     # Proses Alice dan Bob
-                    h_alice, h_bob, aes_ab, time_hash_ab, hash_metrics_ab = process_hash(b_alice, b_bob)
+                    (h_alice, h_bob,
+                     sha_ab_alice, sha_ab_bob,
+                     aes_ab,
+                     time_univ_ab, time_sha_ab, time_aes_ab,
+                     hash_metrics_ab) = process_hash(b_alice, b_bob)
                     # Proses Eve-Alice dan Eve-Bob
-                    h_ea, h_eb, aes_eve, time_hash_eve, hash_metrics_eve = process_hash(b_ea, b_eb)
+                    (h_ea, h_eb,
+                     sha_eve_alice, sha_eve_bob,
+                     aes_eve,
+                     time_univ_eve, time_sha_eve, time_aes_eve,
+                     hash_metrics_eve) = process_hash(b_ea, b_eb)
                     
-                    # Simpan Smua Keys (termasuk yg salah)
+                    # Simpan Semua Keys (termasuk yg salah)
                     os.makedirs(os.path.join(skenario_out_dir, "data_excel_hash"), exist_ok=True)
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_alice.xlsx", h_alice, "AES_keys")
                     save_data_list(os.path.join(skenario_out_dir, "data_excel_hash"), f"{v_name}_hash_bob.xlsx", h_bob, "AES_keys")
@@ -856,48 +996,83 @@ def main():
                     # Simpan kunci AES-128 yang berhasil dicocokkan (match) ke .txt
                     if q == 0.01:
                         txt_aes_dir = os.path.join(skenario_out_dir, "kunci_aes128")
-                        save_keys_to_txt(
-                            txt_aes_dir,
-                            bb,
-                            aes_ab,
-                            aes_eve,
-                            label="AES-128"
-                        )
+                        save_keys_to_txt(txt_aes_dir, bb, aes_ab, aes_eve, label="AES-128")
                     
                     hash_records.append({
                         "skenario": skenario, "q": q, "r": r, "bb": bb,
                         "aes_count_ab": len(aes_ab), "aes_count_eve": len(aes_eve),
-                        "keys_count_alice": hash_metrics_ab["keys_count_alice"], "keys_count_bob": hash_metrics_ab["keys_count_bob"],
-                        "keys_count_ea": hash_metrics_eve["keys_count_alice"], "keys_count_eb": hash_metrics_eve["keys_count_bob"],
+                        "keys_count_alice": hash_metrics_ab["keys_count_alice"],
+                        "keys_count_bob":   hash_metrics_ab["keys_count_bob"],
+                        "keys_count_ea":    hash_metrics_eve["keys_count_alice"],
+                        "keys_count_eb":    hash_metrics_eve["keys_count_bob"],
                         "total_key_bits_alice": hash_metrics_ab["total_key_bits_alice"],
-                        "total_key_bits_bob": hash_metrics_ab["total_key_bits_bob"],
-                        "total_key_bits_ea": hash_metrics_eve["total_key_bits_alice"],
-                        "total_key_bits_eb": hash_metrics_eve["total_key_bits_bob"],
-                        "matched_key_bits_ab": hash_metrics_ab["matched_key_bits"],
+                        "total_key_bits_bob":   hash_metrics_ab["total_key_bits_bob"],
+                        "total_key_bits_ea":    hash_metrics_eve["total_key_bits_alice"],
+                        "total_key_bits_eb":    hash_metrics_eve["total_key_bits_bob"],
+                        "matched_key_bits_ab":  hash_metrics_ab["matched_key_bits"],
                         "matched_key_bits_eve": hash_metrics_eve["matched_key_bits"],
-                        "final_key_alice": h_alice[0] if len(h_alice) > 0 else "N/A",
-                        "final_key_bob": h_bob[0] if len(h_bob) > 0 else "N/A",
-                        "final_key_ea": h_ea[0] if len(h_ea) > 0 else "N/A",
-                        "final_key_eb": h_eb[0] if len(h_eb) > 0 else "N/A",
-                        "time_hash_ab": time_hash_ab, "time_hash_eve": time_hash_eve
+                        "final_key_alice": h_alice[0] if h_alice else "N/A",
+                        "final_key_bob":   h_bob[0]   if h_bob   else "N/A",
+                        "final_key_ea":    h_ea[0]    if h_ea    else "N/A",
+                        "final_key_eb":    h_eb[0]    if h_eb    else "N/A",
+                        "sha1_key_alice":  sha_ab_alice[0] if sha_ab_alice else "N/A",
+                        "sha1_key_bob":    sha_ab_bob[0]   if sha_ab_bob   else "N/A",
+                        "sha1_key_ea":     sha_eve_alice[0] if sha_eve_alice else "N/A",
+                        "sha1_key_eb":     sha_eve_bob[0]   if sha_eve_bob   else "N/A",
+                        "time_univ_ab":  time_univ_ab,  "time_univ_eve":  time_univ_eve,
+                        "time_sha_ab":   time_sha_ab,   "time_sha_eve":   time_sha_eve,
+                        "time_aes_ab":   time_aes_ab,   "time_aes_eve":   time_aes_eve,
+                        # backward-compat
+                        "time_hash_ab":  time_univ_ab + time_sha_ab + time_aes_ab,
+                        "time_hash_eve": time_univ_eve + time_sha_eve + time_aes_eve,
                     })
                     
-                    # --- 6. Uji NIST ---
+                    # --- 6. NIST pada output Universal Hash (hex_alice = h_alice) ---
                     try:
-                        from nist_module import process_nist
-                        pass_ab, pval_ab, pass_rate_ab, pdist_ab, time_nist_ab = process_nist(aes_ab)
-                        pass_eve, pval_eve, pass_rate_eve, pdist_eve, time_nist_eve = process_nist(aes_eve)
+                        (
+                            pass_univ_ab, pval_univ_ab, prate_univ_ab,
+                            pdist_univ_ab, time_nist_univ_ab, test_pvals_ab
+                        ) = process_nist(h_alice)
+                        (
+                            pass_univ_eve, pval_univ_eve, prate_univ_eve,
+                            pdist_univ_eve, time_nist_univ_eve, test_pvals_eve
+                        ) = process_nist(h_ea)
+
+                        nist_univ_records.append({
+                            "skenario": skenario, "q": q, "r": r, "bb": bb,
+                            "nist_univ_ab":       test_pvals_ab,
+                            "nist_univ_eve":      test_pvals_eve,
+                            "best_pval_ab":       pval_univ_ab,
+                            "best_pval_eve":      pval_univ_eve,
+                            "passed_univ_ab":     pass_univ_ab,
+                            "passed_univ_eve":    pass_univ_eve,
+                            "pass_rate_univ_ab":  prate_univ_ab,
+                            "pass_rate_univ_eve": prate_univ_eve,
+                            "time_nist_univ_ab":  time_nist_univ_ab,
+                            "time_nist_univ_eve": time_nist_univ_eve,
+                        })
+                    except Exception as e:
+                        print("NIST Universal Hash Error:", e)
+
+                    # --- 7. Uji NIST pada kunci AES ---
+                    try:
+                        pass_ab, pval_ab, pass_rate_ab, pdist_ab, time_nist_ab, tpv_ab = process_nist(aes_ab)
+                        pass_eve, pval_eve, pass_rate_eve, pdist_eve, time_nist_eve, tpv_eve = process_nist(aes_eve)
 
                         pdist_ab_str = ", ".join([f"{k}:{v}" for k, v in pdist_ab.items()])
                         pdist_eve_str = ", ".join([f"{k}:{v}" for k, v in pdist_eve.items()])
-                        
+                        nist_tests_desc = (
+                            "Approximate Entropy, Frequency, Block Frequency, "
+                            "Cumulative Sums, Runs, Longest Run of Ones"
+                        )
                         nist_records.append({
                             "skenario": skenario, "q": q, "r": r, "bb": bb,
                             "passed_keys_ab": pass_ab, "passed_keys_eve": pass_eve,
                             "pval_ab": pval_ab, "pval_eve": pval_eve,
                             "pass_rate_ab": pass_rate_ab, "pass_rate_eve": pass_rate_eve,
                             "pval_dist_ab": pdist_ab_str, "pval_dist_eve": pdist_eve_str,
-                            "time_nist_ab": time_nist_ab, "time_nist_eve": time_nist_eve
+                            "time_nist_ab": time_nist_ab, "time_nist_eve": time_nist_eve,
+                            "nist_tests": nist_tests_desc
                         })
                         
                         # Simpan kunci yang lulus uji NIST ke .txt
@@ -905,15 +1080,9 @@ def main():
                             nist_keys_ab  = pass_ab  if isinstance(pass_ab, list)  else []
                             nist_keys_eve = pass_eve if isinstance(pass_eve, list) else []
                             txt_nist_dir = os.path.join(skenario_out_dir, "kunci_nist")
-                            save_keys_to_txt(
-                                txt_nist_dir,
-                                bb,
-                                nist_keys_ab,
-                                nist_keys_eve,
-                                label="NIST"
-                            )
+                            save_keys_to_txt(txt_nist_dir, bb, nist_keys_ab, nist_keys_eve, label="NIST")
                     except Exception as e:
-                        print("NIST Modul Error:", e)
+                        print("NIST AES Modul Error:", e)
                         
                 except Exception as e:
                     print("Hash Modul Error:", e)
@@ -929,6 +1098,13 @@ def main():
             build_bch_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_BCH.xlsx"), bch_records)
         if hash_records:
             build_hash_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_Hash.xlsx"), hash_records)
+        if nist_univ_records:
+            # Buat file excel terpisah untuk NIST Universal Hash
+            wb_nu = Workbook()
+            if 'Sheet' in wb_nu.sheetnames:
+                wb_nu.remove(wb_nu['Sheet'])
+            build_univ_hash_nist_sheet(wb_nu, nist_univ_records)
+            wb_nu.save(os.path.join(skenario_out_dir, "Laporan_Tabel_NIST_UniversalHash.xlsx"))
         if nist_records:
             build_nist_excel(os.path.join(skenario_out_dir, "Laporan_Tabel_NIST.xlsx"), nist_records)
             
@@ -940,6 +1116,7 @@ def main():
         if bch_records: global_bch_records.extend(bch_records)
         if hash_records: global_hash_records.extend(hash_records)
         if nist_records: global_nist_records.extend(nist_records)
+        if nist_univ_records: global_nist_univ_records.extend(nist_univ_records)
 
     # === GENERATE GLOBAL REKAP ===
     print("\n==== MERANGKUM SELURUH SKENARIO KE DALAM SATU FILE EXCEL ====")
@@ -963,12 +1140,21 @@ def main():
         build_bch_sheet(rekap_wb, global_bch_records)
         
     if global_hash_records:
-        print("Menyusun sheet Hash...")
+        print("Menyusun sheet Hash (Universal Hash / SHA-1 / AES-128)...")
         build_hash_sheet(rekap_wb, global_hash_records)
         
+    if global_nist_univ_records:
+        print("Menyusun sheet NIST Universal Hash...")
+        build_univ_hash_nist_sheet(rekap_wb, global_nist_univ_records)
+        
     if global_nist_records:
-        print("Menyusun sheet NIST...")
+        print("Menyusun sheet NIST AES...")
         build_nist_sheet(rekap_wb, global_nist_records)
+        
+    print("Menyusun sheet Rekap Semua Proses...")
+    build_all_proses_sheet(rekap_wb, global_kalman_records, global_kuan_records,
+                           global_bch_records, global_hash_records, global_nist_records,
+                           global_nist_univ_records)
         
     rekap_wb.save(rekap_excel_path)
     print(f"Selesai! File rekap global berhasil disimpan di: {rekap_excel_path}")
