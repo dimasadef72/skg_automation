@@ -80,3 +80,9 @@ Hasil*.xlsx
 # OS System Files
 .DS_Store
 Thumbs.db
+
+# AES Simulation
+aes_simulation/data/output/*
+!aes_simulation/data/output/.gitkeep
+aes_simulation/data/public/*
+!aes_simulation/data/public/.gitkeep
