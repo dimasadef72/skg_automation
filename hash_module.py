@@ -6,14 +6,16 @@ import hashlib
 
 def process_hash(alice_bits, bob_bits, hashtable_path='Hashtable128.csv'):
     """
-    Proses Privacy Amplification dengan 3 sub-tahap terpisah:
+        Proses Privacy Amplification dengan 3 sub-tahap terpisah:
       1. Universal Hash  -> (keys_alice, keys_bob, hex_alice, hex_bob, time_universal)
       2. SHA-1           -> (sha_keys_alice, sha_keys_bob, time_sha)
       3. AES-128 Matching -> (aes_keys, time_aes)
 
     Return:
-      hex_alice, hex_bob, aes_keys,
-      time_universal, time_sha, time_aes,
+            hex_alice, hex_bob,
+            sha_keys_alice, sha_keys_bob,
+            aes_keys,
+            time_universal, time_sha, time_aes,
       metrics
     """
 
@@ -103,6 +105,7 @@ def process_hash(alice_bits, bob_bits, hashtable_path='Hashtable128.csv'):
     aes_keys = []
     for idx in range(min(len(sha_keys_alice), len(sha_keys_bob))):
         if sha_keys_alice[idx] == sha_keys_bob[idx]:
+            # Menggunakan hasil Universal Hash (128-bit / 32 karakter hex) sebagai kunci AES-128
             aes_keys.append(hex_alice[idx])
 
     t_aes_end = time.time()

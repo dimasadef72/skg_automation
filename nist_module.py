@@ -199,18 +199,19 @@ def process_nist(hash_keys, alpha=0.01):
       5. Longest Run of Ones Test
       6. Approximate Entropy Test
 
-    Untuk setiap kunci, diambil nilai p-value tertinggi dari semua 6 uji.
+    Untuk setiap kunci (hex string 128-bit atau SHA-1 hex),
+    diambil nilai p-value tertinggi dari semua 6 uji.
     Fungsi mengembalikan:
       - passed_keys_count  : jumlah kunci yang lulus (p >= alpha)
       - avg_pvalue         : rata-rata p-value tertinggi
       - pass_rate          : persentase kunci lulus
       - distribution       : distribusi p-value tertinggi
       - time_nist          : waktu komputasi (detik)
-      - test_pvalues_best  : dict {test_name: avg_best_pvalue} untuk tiap test
+    - test_pvalues_best  : dict {test_name: max_pvalue} untuk tiap test
     """
     start = time.time()
     passed_keys_count = 0
-    avg_pvalue = 0.0
+    best_overall_pvalue = 0.0
 
     _empty_dist = {
         "0.00-0.01": 0,
@@ -229,7 +230,7 @@ def process_nist(hash_keys, alpha=0.01):
     }
 
     if not hash_keys:
-        return passed_keys_count, avg_pvalue, 0.0, _empty_dist, 0.0, _empty_tests
+        return passed_keys_count, best_overall_pvalue, 0.0, _empty_dist, 0.0, _empty_tests
 
     TEST_NAMES = [
         ("Frequency",      _frequency_test),
@@ -241,7 +242,7 @@ def process_nist(hash_keys, alpha=0.01):
     ]
 
     best_pvalues = []           # p-value tertinggi per kunci
-    per_test_sums = {name: 0.0 for name, _ in TEST_NAMES}
+    per_test_best = {name: 0.0 for name, _ in TEST_NAMES}  # nilai MAX per uji
 
     for key in hash_keys:
         bits = _hex_to_bits(key)
@@ -252,14 +253,20 @@ def process_nist(hash_keys, alpha=0.01):
             except Exception:
                 pv = 0.0
             pvals_this_key[t_name] = pv
-            per_test_sums[t_name] += pv
+            # Simpan nilai tertinggi (max) per uji di antara semua kunci
+            if pv > per_test_best[t_name]:
+                per_test_best[t_name] = pv
 
         best_p = max(pvals_this_key.values())
         best_pvalues.append(best_p)
 
     n_keys = len(hash_keys)
+    best_key_str = ""
+    best_key_idx = -1
     if best_pvalues:
-        avg_pvalue = float(np.mean(best_pvalues))
+        best_key_idx = int(np.argmax(best_pvalues))
+        best_key_str = hash_keys[best_key_idx]
+        best_overall_pvalue = float(np.max(best_pvalues))
         passed_keys_count = sum(1 for p in best_pvalues if p >= alpha)
 
     pass_rate = (passed_keys_count / n_keys) * 100.0
@@ -283,10 +290,10 @@ def process_nist(hash_keys, alpha=0.01):
         else:
             distribution["0.50-1.00"] += 1
 
-    # Rata-rata per uji
-    test_avg_pvalues = {name: (per_test_sums[name] / n_keys) for name in per_test_sums}
+    # Nilai tertinggi (max) p-value per uji di antara semua kunci
+    test_best_pvalues = {name: per_test_best[name] for name in per_test_best}
 
     end = time.time()
     time_nist = end - start
 
-    return passed_keys_count, avg_pvalue, pass_rate, distribution, time_nist, test_avg_pvalues
+    return passed_keys_count, best_overall_pvalue, pass_rate, distribution, time_nist, test_best_pvalues, best_key_str, best_key_idx
