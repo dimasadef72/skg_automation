@@ -93,6 +93,13 @@ def process_hash(alice_bits, bob_bits, hashtable_path='Hashtable128.csv'):
         "matched_key_count": len(aes_keys),
         "matched_key_bits": len(aes_keys) * 128,
         "time_hash": time_hash,
+        # Detail untuk visualisasi 3 tahap (Hash, SHA, Matching)
+        "sha_keys_alice": sha_keys_alice,
+        "sha_keys_bob": sha_keys_bob,
+        "hex_alice": hex_alice,
+        "hex_bob": hex_bob,
+        "matched_indices": [idx for idx in range(min(len(sha_keys_alice), len(sha_keys_bob))) 
+                           if sha_keys_alice[idx] == sha_keys_bob[idx]],
     }
 
     return hex_alice, hex_bob, aes_keys, time_hash, metrics

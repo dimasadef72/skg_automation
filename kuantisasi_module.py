@@ -10,7 +10,7 @@ def gray_code(n):
         codes = ['0' + c for c in codes] + ['1' + c for c in mirror]
     return codes
 
-def process_kuantisasi(data, num_bits=3, benchmark_iterations=10):
+def process_kuantisasi(data, num_bits=3, benchmark_iterations=10, reference_min=None, reference_max=None):
     """
     Kuantisasi nilai array menjadi bitstream String dengan Gray Code.
     Mengembalikan Array Bitstream Final, rata rata KGR, dan rata rata Waktu (diuji iterasi 10x seperti aslinya).
@@ -22,8 +22,12 @@ def process_kuantisasi(data, num_bits=3, benchmark_iterations=10):
         if n == 0: return "", 0, 0.0, 0.0
         
         levels = 2 ** num_bits
-        d_min = np.min(data_arr)
-        d_max = np.max(data_arr)
+        if reference_min is None or reference_max is None:
+            d_min = np.min(data_arr)
+            d_max = np.max(data_arr)
+        else:
+            d_min = float(reference_min)
+            d_max = float(reference_max)
         d_range = d_max - d_min
         
         if d_range == 0:
