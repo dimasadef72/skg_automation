@@ -3,13 +3,16 @@ import numpy as np
 from ultralytics import YOLO
 import torch
 import time
+import os
 
 # Pastikan CUDA tersedia
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 # Load model YOLOv11 ke GPU jika tersedia
-model = YOLO("best.pt").to(device)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(script_dir, "best.pt")
+model = YOLO(model_path).to(device)
 # Tampilkan daftar nama kelas agar bisa disesuaikan dengan whitelist
 try:
     print("Model class names:", model.names)

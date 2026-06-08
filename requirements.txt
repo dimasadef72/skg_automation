@@ -4,3 +4,6 @@ pandas
 openpyxl
 pycryptodome
 pillow
+opencv-python
+ultralytics
+torch
