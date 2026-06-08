@@ -7,5 +7,4 @@ pillow
 opencv-python
 ultralytics
 torch
-picamera2
 libcamera
